@@ -1,1105 +1,375 @@
---//========================================================
---// AI PATH GUIDE 5D
---// 2 NÚT DUY NHẤT:
---// 1. ON / OFF
---// 2. CLICK TARGET
---//
---// CHỈ DẪN ĐƯỜNG
---// KHÔNG TỰ ĐIỀU KHIỂN NHÂN VẬT
---// CLICK MAP -> TÌM ĐƯỜNG -> TỰ BẺ GÓC -> NEON GREEN RAY
---// MOBILE + DRAG UI + ANTI DUPLICATE + CLEANUP
---//========================================================
+--[========================================================================]--
+--  ROBLOX PRO KILLER AI SYSTEM (FULL SCRIPT)
+--  Target: LocalPlayer only (Asset ID: 11161546148)
+--  Features: Advanced State Machine, Smart Pathfinding, Prediction, Parkour,
+--            Visual Debug, Custom UI Panel, Health Tracking (10 hits to kill),
+--            Respawn handling, and ON/OFF toggle support.
+--[========================================================================]--
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local PathfindingService = game:GetService("PathfindingService")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+local LocalPlayer = Players.LocalPlayer
 
---========================================================
--- CONFIG
---========================================================
-
+-- CONFIGURATIONS
 local CONFIG = {
-    MaxDistance = 2000,
-
-    AgentRadius = 2,
-    AgentHeight = 5,
-
-    WaypointSpacing = 4,
-
-    RayThickness = 0.12,
-    RayTransparency = 0.12,
-
-    MarkerSize = 2.5,
-
-    MaxVisualSegments = 60,
-
-    RecalculateDelay = 0.12,
-
-    Green = Color3.fromRGB(57,255,20),
+	NPC_ASSET_ID = 11161546148,
+	MAX_HEALTH = 10, -- 10 hits to kill NPC
+	WALK_SPEED = 18,
+	CHASE_SPEED = 24,
+	ATTACK_RANGE = 4.5,
+	DETECTION_RANGE = 75,
+	LOST_TARGET_RANGE = 120,
+	ATTACK_COOLDOWN = 1.5,
+	WAYPOINT_RECALC_INTERVAL = 1.2,
+	STUCK_TIMEOUT = 2.0,
 }
 
---========================================================
--- REMOVE OLD VERSION
---========================================================
+-- STATES
+local State = {
+	IDLE = "IDLE",
+	SEARCHING = "SEARCHING",
+	CHASING = "CHASING",
+	ATTACKING = "ATTACKING",
+	REPATHING = "REPATHING",
+	RECOVERING = "RECOVERING",
+	LOST_TARGET = "LOST_TARGET",
+	WAITING = "WAITING"
+}
 
-local oldGui = PlayerGui:FindFirstChild("AIPathGuide5D")
+-- AI RUNTIME VARIABLES
+local currentAIState = State.IDLE
+local isAIActive = false
+local isDebugVisualsOn = true
+local currentHP = CONFIG.MAX_HEALTH
 
-if oldGui then
-    oldGui:Destroy()
+local npcModel = nil
+local npcHumanoid = nil
+local npcRootPart = nil
+
+local lastWaypointPosition = Vector3.new()
+local currentWaypointIndex = 1
+local waypoints = {}
+local lastRepathTick = 0
+local lastStuckCheckTick = time()
+local lastPositionForStuck = Vector3.new()
+local lastAttackTick = 0
+
+local targetCharacter = nil
+local targetHumanoid = nil
+local targetRootPart = nil
+
+-- VISUAL CONTAINERS
+local debugFolder = Instance.new("Folder")
+debugFolder.Name = "KillerAIDebug"
+debugFolder.Parent = Workspace
+
+-- UI PANELS CREATION (Mobile Friendly & Draggable)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "KillerAI_UI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainPanel = Instance.new("Frame")
+mainPanel.Size = UDim2.new(0, 220, 0, 310)
+mainPanel.Position = UDim2.new(0.02, 0, 0.2, 0)
+mainPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainPanel.BorderSizePixel = 0
+mainPanel.Active = true
+mainPanel.Draggable = true
+mainPanel.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainPanel
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "KILLER AI PANEL"
+titleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Parent = mainPanel
+
+local function createStatusRow(name, posY)
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Size = UDim2.new(1, -20, 0, 20)
+	label.Position = UDim2.new(0, 10, 0, posY)
+	label.BackgroundTransparency = 1
+	label.Text = name .. ": [N/A]"
+	label.TextColor3 = Color3.fromRGB(200, 200, 200)
+	label.TextSize = 12
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Font = Enum.Font.SourceSans
+	label.Parent = mainPanel
+	return label
 end
 
-local oldFolder = workspace:FindFirstChild("AIPathGuide5D_VISUAL")
+local stateDisp = createStatusRow("STATE", 35)
+local distDisp = createStatusRow("DISTANCE", 55)
+local speedDisp = createStatusRow("SPEED", 75)
+local hpDisp = createStatusRow("NPCHP", 95)
+local stuckDisp = createStatusRow("STUCK", 115)
 
-if oldFolder then
-    oldFolder:Destroy()
+local function createToggleButton(text, posY, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.9, 0, 0, 28)
+	btn.Position = UDim2.new(0.05, 0, 0, posY)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Text = text .. ": OFF"
+	btn.TextSize = 12
+	btn.Font = Enum.Font.SourceSansBold
+	btn.Parent = mainPanel
+	
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 4)
+	btnCorner.Parent = btn
+	
+	local state = false
+	btn.MouseButton1Click:Connect(function()
+		state = not state
+		btn.BackgroundColor3 = state and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 40, 40)
+		btn.Text = text .. (state and ": ON" or ": OFF")
+		callback(state)
+	end)
+	return btn
 end
 
---========================================================
--- STATE
---========================================================
-
-local Enabled = false
-local ClickMode = false
-
-local Character
-local Root
-
-local TargetPosition = nil
-local TargetNormal = nil
-
-local TargetMarker = nil
-
-local CurrentPath = {}
-local PathVersion = 0
-
-local RayPool = {}
-
-local Dragging = false
-local DragStart
-local StartPosition
-
---========================================================
--- CHARACTER
---========================================================
-
-local function UpdateCharacter()
-
-    Character = Player.Character
-
-    if Character then
-        Root = Character:FindFirstChild("HumanoidRootPart")
-    else
-        Root = nil
-    end
-
-end
-
-UpdateCharacter()
-
-Player.CharacterAdded:Connect(function(character)
-
-    Character = character
-
-    task.wait(0.5)
-
-    UpdateCharacter()
-
-    -- Chỉ cập nhật visual, không tự điều khiển nhân vật
-    if Enabled and TargetPosition then
-        PathVersion += 1
-    end
-
+createToggleButton("AI TOGGLE", 145, function(state)
+	isAIActive = state
+	if not isAIActive and npcHumanoid then
+		npcHumanoid:MoveTo(npcRootPart.Position)
+		currentAIState = State.IDLE
+	end
 end)
 
---========================================================
--- VISUAL FOLDER
---========================================================
+createToggleButton("SPAWN NPC", 180, function(state)
+	if state then
+		spawnNPC()
+	else
+		despawnNPC()
+	end
+end)
 
-local VisualFolder = Instance.new("Folder")
-VisualFolder.Name = "AIPathGuide5D_VISUAL"
-VisualFolder.Parent = workspace
+createToggleButton("DEBUG VISUAL", 215, function(state)
+	isDebugVisualsOn = state
+	debugFolder.Parent = state and Workspace or nil
+end)
 
---========================================================
--- UI
---========================================================
-
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "AIPathGuide5D"
-Gui.ResetOnSpawn = false
-Gui.IgnoreGuiInset = true
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-Gui.Parent = PlayerGui
-
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.fromOffset(180,88)
-Main.Position = UDim2.new(0.5,-90,0.70,0)
-
-Main.BackgroundColor3 = Color3.fromRGB(5,14,28)
-Main.BackgroundTransparency = 0.30
-Main.BorderSizePixel = 0
-Main.Active = true
-
-Main.Parent = Gui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0,14)
-Corner.Parent = Main
-
-local Stroke = Instance.new("UIStroke")
-Stroke.Thickness = 2
-Stroke.Color = Color3.fromRGB(30,150,255)
-Stroke.Transparency = 0.05
-Stroke.Parent = Main
-
---========================================================
--- TITLE
---========================================================
-
-local Title = Instance.new("TextLabel")
-Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1,-10,0,18)
-Title.Position = UDim2.fromOffset(5,3)
-
-Title.Text = "AI PATH GUIDE 5D"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 11
-Title.TextColor3 = Color3.fromRGB(90,190,255)
-
-Title.Parent = Main
-
---========================================================
--- ON OFF BUTTON
---========================================================
-
-local Toggle = Instance.new("TextButton")
-Toggle.Name = "OnOff"
-Toggle.Size = UDim2.new(1,-12,0,27)
-Toggle.Position = UDim2.fromOffset(6,23)
-
-Toggle.BackgroundColor3 = Color3.fromRGB(10,35,65)
-Toggle.BackgroundTransparency = 0.12
-Toggle.BorderSizePixel = 0
-
-Toggle.Text = "ON / OFF : OFF"
-Toggle.Font = Enum.Font.GothamBold
-Toggle.TextSize = 10
-Toggle.TextColor3 = Color3.fromRGB(255,90,90)
-
-Toggle.AutoButtonColor = false
-Toggle.Parent = Main
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0,8)
-ToggleCorner.Parent = Toggle
-
---========================================================
--- CLICK BUTTON
---========================================================
-
-local ClickButton = Instance.new("TextButton")
-ClickButton.Name = "ClickTarget"
-ClickButton.Size = UDim2.new(1,-12,0,27)
-ClickButton.Position = UDim2.fromOffset(6,53)
-
-ClickButton.BackgroundColor3 = Color3.fromRGB(10,35,65)
-ClickButton.BackgroundTransparency = 0.12
-ClickButton.BorderSizePixel = 0
-
-ClickButton.Text = "CLICK : SELECT"
-ClickButton.Font = Enum.Font.GothamBold
-ClickButton.TextSize = 10
-ClickButton.TextColor3 = Color3.fromRGB(100,180,255)
-
-ClickButton.AutoButtonColor = false
-ClickButton.Parent = Main
-
-local ClickCorner = Instance.new("UICorner")
-ClickCorner.CornerRadius = UDim.new(0,8)
-ClickCorner.Parent = ClickButton
-
---========================================================
--- TARGET MARKER
---========================================================
-
-local function RemoveMarker()
-
-    if TargetMarker then
-        TargetMarker:Destroy()
-        TargetMarker = nil
-    end
-
+-- SPAWN & DESPAWN LOGIC FOR NPC
+function spawnNPC()
+	despawnNPC()
+	currentHP = CONFIG.MAX_HEALTH
+	
+	pcall(function()
+		local modelClone = game:GetService("InsertService"):LoadAsset(CONFIG.NPC_ASSET_ID)
+		if modelClone then
+			npcModel = modelClone:GetChildren()[1] or modelClone
+			npcModel.Name = "KillerNPC_" .. math.random(1000,9999)
+			npcModel.Parent = Workspace
+			
+			if not npcModel.PrimaryPart then
+				npcModel.PrimaryPart = npcModel:FindFirstChild("HumanoidRootPart") or npcModel:FindFirstChild("Torso")
+			end
+			
+			local spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+				and (LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(10, 0, 10)) or Vector3.new(0, 5, 0)
+			
+			if npcModel.PrimaryPart then
+				npcModel:SetPrimaryPartCFrame(CFrame.new(spawnPos))
+			end
+			
+			npcHumanoid = npcModel:FindFirstChildOfClass("Humanoid")
+			npcRootPart = npcModel:FindFirstChild("HumanoidRootPart") or npcModel.PrimaryPart
+			
+			if npcHumanoid and npcRootPart then
+				npcHumanoid.WalkSpeed = CONFIG.WALK_SPEED
+				
+				-- Track NPC Health (10 hits to kill)
+				npcHumanoid.HealthChanged:Connect(function(health)
+					if health <= 0 then
+						despawnNPC()
+					end
+				end)
+			end
+		end
+	end)
 end
 
-local function CreateMarker(position,normal)
-
-    RemoveMarker()
-
-    local part = Instance.new("Part")
-
-    part.Name = "TargetMarker"
-
-    part.Size =
-        Vector3.new(
-            CONFIG.MarkerSize,
-            0.08,
-            CONFIG.MarkerSize
-        )
-
-    part.Anchored = true
-
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CanQuery = false
-
-    part.Transparency = 1
-
-    part.CFrame =
-        CFrame.lookAt(
-            position + normal * 0.05,
-            position + normal
-        )
-
-    part.Parent = VisualFolder
-
-    local billboard =
-        Instance.new("BillboardGui")
-
-    billboard.Name = "TargetImage"
-
-    billboard.Size =
-        UDim2.fromOffset(55,55)
-
-    billboard.AlwaysOnTop = true
-    billboard.LightInfluence = 0
-
-    billboard.Parent = part
-
-    local image =
-        Instance.new("ImageLabel")
-
-    image.BackgroundTransparency = 1
-
-    image.Size =
-        UDim2.fromScale(1,1)
-
-    image.Image =
-        "rbxassetid://71165623455163"
-
-    image.ImageTransparency = 0.05
-
-    image.Parent = billboard
-
-    TargetMarker = part
-
+function despawnNPC()
+	if npcModel then
+		npcModel:Destroy()
+		npcModel = nil
+		npcHumanoid = nil
+		npcRootPart = nil
+	end
 end
 
---========================================================
--- RAY POOL
---========================================================
-
-local function GetRay(index)
-
-    if RayPool[index] then
-        return RayPool[index]
-    end
-
-    local part = Instance.new("Part")
-
-    part.Name = "GuideRay_" .. index
-
-    part.Anchored = true
-
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CanQuery = false
-
-    part.Material = Enum.Material.Neon
-
-    part.Color = CONFIG.Green
-
-    part.Transparency =
-        CONFIG.RayTransparency
-
-    part.Size =
-        Vector3.new(
-            CONFIG.RayThickness,
-            CONFIG.RayThickness,
-            1
-        )
-
-    part.Parent = VisualFolder
-
-    RayPool[index] = part
-
-    return part
-
+-- TARGET BINDING
+local function updateTarget()
+	if LocalPlayer.Character then
+		targetCharacter = LocalPlayer.Character
+		targetHumanoid = targetCharacter:FindFirstChildOfClass("Humanoid")
+		targetRootPart = targetCharacter:FindFirstChild("HumanoidRootPart")
+	else
+		targetCharacter = nil
+		targetHumanoid = nil
+		targetRootPart = nil
+	end
 end
 
---========================================================
--- DRAW ONE RAY
---========================================================
+LocalPlayer.CharacterAdded:Connect(function(char)
+	updateTarget()
+	if char then
+		char:WaitForChild("Humanoid").Died:Connect(function()
+			currentAIState = State.WAITING
+		end)
+	end
+end)
 
-local function DrawRay(index,a,b)
-
-    if not a or not b then
-        return
-    end
-
-    local ray = GetRay(index)
-
-    local distance =
-        (b-a).Magnitude
-
-    if distance <= 0.05 then
-
-        ray.Transparency = 1
-
-        return
-    end
-
-    ray.Transparency =
-        CONFIG.RayTransparency
-
-    ray.Size =
-        Vector3.new(
-            CONFIG.RayThickness,
-            CONFIG.RayThickness,
-            distance
-        )
-
-    ray.CFrame =
-        CFrame.lookAt(
-            (a+b)/2,
-            b
-        )
-
+if LocalPlayer.Character then
+	updateTarget()
+	LocalPlayer.Character:WaitForChild("Humanoid").Died:Connect(function()
+		currentAIState = State.WAITING
+	end)
 end
 
---========================================================
--- HIDE RAYS
---========================================================
-
-local function HideRays()
-
-    for _,ray in pairs(RayPool) do
-
-        ray.Transparency = 1
-
-    end
-
+-- ADVANCED PREDICTION & PATHFINDING
+local function computePath(destination)
+	local path = PathfindingService:CreatePath({
+		AgentRadius = 2.5,
+		AgentHeight = 5,
+		AgentCanJump = true,
+		WaypointSpacing = 4,
+	})
+	
+	local success, err = pcall(function()
+		path:ComputeAsync(npcRootPart.Position, destination)
+	end)
+	
+	if success and path.Status == Enum.PathStatus.Success then
+		waypoints = path:GetWaypoints()
+		currentWaypointIndex = 2
+		return true
+	end
+	return false
 end
 
---========================================================
--- CLEAR PATH
---========================================================
-
-local function ClearPath()
-
-    CurrentPath = {}
-
-    HideRays()
-
+local function getPredictedPosition()
+	if not targetRootPart or not targetHumanoid then return Vector3.new() end
+	local velocity = targetRootPart.Velocity
+	local speed = velocity.Magnitude
+	local predictionFactor = math.clamp(speed / 15, 0.5, 2.0)
+	return targetRootPart.Position + (velocity * 0.3 * predictionFactor)
 end
 
---========================================================
--- RAYCAST PARAMS
---========================================================
-
-local RayParams =
-    RaycastParams.new()
-
-RayParams.FilterType =
-    Enum.RaycastFilterType.Exclude
-
-local function UpdateRayFilter()
-
-    local filter = {
-        VisualFolder
-    }
-
-    if Character then
-        table.insert(
-            filter,
-            Character
-        )
-    end
-
-    RayParams.FilterDescendantsInstances =
-        filter
-
-end
-
---========================================================
--- PATHFINDING
---========================================================
-
-local function CalculatePath(target)
-
-    if not target then
-        return {}
-    end
-
-    UpdateRayFilter()
-
-    local start
-
-    if Root then
-        start = Root.Position
-    else
-        return {}
-    end
-
-    local path =
-        PathfindingService:CreatePath({
-            AgentRadius =
-                CONFIG.AgentRadius,
-
-            AgentHeight =
-                CONFIG.AgentHeight,
-
-            AgentCanJump = true,
-
-            AgentCanClimb = true,
-
-            WaypointSpacing =
-                CONFIG.WaypointSpacing,
-        })
-
-    local success =
-        pcall(function()
-
-            path:ComputeAsync(
-                start,
-                target
-            )
-
-        end)
-
-    if not success then
-        return {}
-    end
-
-    if path.Status ~=
-        Enum.PathStatus.Success then
-
-        return {}
-    end
-
-    local points = {}
-
-    for _,waypoint in ipairs(
-        path:GetWaypoints()
-    ) do
-
-        if #points >=
-            CONFIG.MaxVisualSegments then
-
-            break
-
-        end
-
-        table.insert(
-            points,
-            {
-                Position =
-                    waypoint.Position,
-
-                Action =
-                    waypoint.Action,
-            }
-        )
-
-    end
-
-    return points
-
-end
-
---========================================================
--- DRAW PATH
---========================================================
-
-local function DrawPath()
-
-    HideRays()
-
-    if not Enabled then
-        return
-    end
-
-    if not Root then
-        return
-    end
-
-    local previous =
-        Root.Position
-
-    for i,point in ipairs(
-        CurrentPath
-    ) do
-
-        local position =
-            point.Position
-
-        -- Tự bẻ góc theo waypoint
-        DrawRay(
-            i,
-            previous,
-            position
-        )
-
-        previous = position
-
-    end
-
-    -- Đoạn cuối tới target
-    if TargetPosition
-    and previous then
-
-        DrawRay(
-            #CurrentPath + 1,
-            previous,
-            TargetPosition
-        )
-
-    end
-
-end
-
---========================================================
--- SET TARGET
---========================================================
-
-local function SetTarget(
-    position,
-    normal
-)
-
-    if not Enabled then
-        return
-    end
-
-    TargetPosition =
-        position
-
-    TargetNormal =
-        normal
-
-    CreateMarker(
-        position,
-        normal
-    )
-
-    ClearPath()
-
-    PathVersion += 1
-
-    local version =
-        PathVersion
-
-    task.delay(
-        CONFIG.RecalculateDelay,
-        function()
-
-            if not Enabled then
-                return
-            end
-
-            if version ~=
-                PathVersion then
-
-                return
-            end
-
-            CurrentPath =
-                CalculatePath(
-                    TargetPosition
-                )
-
-            DrawPath()
-
-        end
-    )
-
-end
-
---========================================================
--- SCREEN RAY
---========================================================
-
-local function GetMapPosition(screenPosition)
-
-    if not Camera then
-        return nil
-    end
-
-    UpdateRayFilter()
-
-    local cameraRay =
-        Camera:ViewportPointToRay(
-            screenPosition.X,
-            screenPosition.Y
-        )
-
-    local result =
-        workspace:Raycast(
-            cameraRay.Origin,
-            cameraRay.Direction *
-                CONFIG.MaxDistance,
-            RayParams
-        )
-
-    if not result then
-        return nil
-    end
-
-    return
-        result.Position,
-        result.Normal,
-        result.Instance
-
-end
-
---========================================================
--- UI DETECTION
---========================================================
-
-local function IsInsideUI(position)
-
-    local objects =
-        PlayerGui:GetGuiObjectsAtPosition(
-            position.X,
-            position.Y
-        )
-
-    for _,object in ipairs(objects) do
-
-        if object:IsDescendantOf(Main) then
-            return true
-        end
-
-    end
-
-    return false
-
-end
-
---========================================================
--- CLICK TARGET INPUT
---========================================================
-
-UserInputService.InputBegan:Connect(
-    function(input,processed)
-
-        if processed then
-            return
-        end
-
-        if not Enabled then
-            return
-        end
-
-        if not ClickMode then
-            return
-        end
-
-        local inputType =
-            input.UserInputType
-
-        if inputType ~=
-            Enum.UserInputType.MouseButton1
-        and inputType ~=
-            Enum.UserInputType.Touch then
-
-            return
-        end
-
-        local position =
-            input.Position
-
-        if IsInsideUI(position) then
-            return
-        end
-
-        local target,
-            normal =
-            GetMapPosition(
-                position
-            )
-
-        if not target then
-            return
-        end
-
-        SetTarget(
-            target,
-            normal
-        )
-
-        -- Click 1 lần -> chọn target
-        ClickMode = false
-
-        ClickButton.Text =
-            "CLICK : SELECT"
-
-        ClickButton.TextColor3 =
-            Color3.fromRGB(
-                100,
-                180,
-                255
-            )
-
-    end
-)
-
---========================================================
--- TOGGLE
---========================================================
-
-Toggle.MouseButton1Click:Connect(
-    function()
-
-        Enabled =
-            not Enabled
-
-        if Enabled then
-
-            Toggle.Text =
-                "ON / OFF : ON"
-
-            Toggle.TextColor3 =
-                Color3.fromRGB(
-                    80,
-                    255,
-                    130
-                )
-
-            Stroke.Color =
-                Color3.fromRGB(
-                    30,
-                    190,
-                    255
-                )
-
-        else
-
-            ClickMode = false
-
-            Toggle.Text =
-                "ON / OFF : OFF"
-
-            Toggle.TextColor3 =
-                Color3.fromRGB(
-                    255,
-                    90,
-                    90
-                )
-
-            ClickButton.Text =
-                "CLICK : SELECT"
-
-            ClickButton.TextColor3 =
-                Color3.fromRGB(
-                    100,
-                    180,
-                    255
-                )
-
-            ClearPath()
-
-            RemoveMarker()
-
-        end
-
-    end
-)
-
---========================================================
--- CLICK MODE
---========================================================
-
-ClickButton.MouseButton1Click:Connect(
-    function()
-
-        if not Enabled then
-            return
-        end
-
-        ClickMode =
-            not ClickMode
-
-        if ClickMode then
-
-            ClickButton.Text =
-                "CLICK : TAP MAP"
-
-            ClickButton.TextColor3 =
-                Color3.fromRGB(
-                    80,
-                    255,
-                    130
-                )
-
-        else
-
-            ClickButton.Text =
-                "CLICK : SELECT"
-
-            ClickButton.TextColor3 =
-                Color3.fromRGB(
-                    100,
-                    180,
-                    255
-                )
-
-        end
-
-    end
-)
-
---========================================================
--- MOBILE DRAG
---========================================================
-
-Main.InputBegan:Connect(
-    function(input)
-
-        if input.UserInputType ==
-            Enum.UserInputType.Touch
-        or input.UserInputType ==
-            Enum.UserInputType.MouseButton1 then
-
-            Dragging = true
-
-            DragStart =
-                input.Position
-
-            StartPosition =
-                Main.Position
-
-        end
-
-    end
-)
-
-UserInputService.InputChanged:Connect(
-    function(input)
-
-        if not Dragging then
-            return
-        end
-
-        if input.UserInputType ==
-            Enum.UserInputType.Touch
-        or input.UserInputType ==
-            Enum.UserInputType.MouseMovement then
-
-            local delta =
-                input.Position -
-                DragStart
-
-            Main.Position =
-                UDim2.new(
-                    StartPosition.X.Scale,
-                    StartPosition.X.Offset +
-                        delta.X,
-
-                    StartPosition.Y.Scale,
-                    StartPosition.Y.Offset +
-                        delta.Y
-                )
-
-        end
-
-    end
-)
-
-UserInputService.InputEnded:Connect(
-    function(input)
-
-        if input.UserInputType ==
-            Enum.UserInputType.Touch
-        or input.UserInputType ==
-            Enum.UserInputType.MouseButton1 then
-
-            Dragging = false
-
-        end
-
-    end
-)
-
---========================================================
--- TARGET FOLLOW UPDATE
---========================================================
--- Nhân vật có thể di chuyển trong lúc đang xem đường.
--- Không điều khiển Humanoid.
-
-local lastRootPosition = nil
-local lastRebuild = 0
-
-RunService.Heartbeat:Connect(
-    function()
-
-        if not Enabled then
-            return
-        end
-
-        if not TargetPosition then
-            return
-        end
-
-        if not Root then
-            UpdateCharacter()
-            return
-        end
-
-        -- Nếu người chơi tự di chuyển,
-        -- cập nhật đường từ vị trí hiện tại.
-        local current =
-            Root.Position
-
-        if lastRootPosition then
-
-            local moved =
-                (
-                    current -
-                    lastRootPosition
-                ).Magnitude
-
-            if moved > 4
-            and os.clock() -
-                lastRebuild > 0.25 then
-
-                lastRebuild =
-                    os.clock()
-
-                PathVersion += 1
-
-                local version =
-                    PathVersion
-
-                CurrentPath = {}
-
-                task.spawn(function()
-
-                    local newPath =
-                        CalculatePath(
-                            TargetPosition
-                        )
-
-                    if not Enabled then
-                        return
-                    end
-
-                    if version ~=
-                        PathVersion then
-
-                        return
-                    end
-
-                    CurrentPath =
-                        newPath
-
-                    DrawPath()
-
-                end)
-
-            end
-
-        end
-
-        lastRootPosition =
-            current
-
-        -- Target marker luôn giữ ở vị trí click
-        -- và không ảnh hưởng collision.
-
-        if TargetMarker then
-
-            local billboard =
-                TargetMarker:FindFirstChild(
-                    "TargetImage"
-                )
-
-            if billboard then
-
-                local image =
-                    billboard:FindFirstChild(
-                        "ImageLabel"
-                    )
-
-                if image then
-
-                    local pulse =
-                        (
-                            math.sin(
-                                os.clock() * 3
-                            ) + 1
-                        ) / 2
-
-                    image.ImageTransparency =
-                        0.05 +
-                        pulse * 0.25
-
-                    billboard.StudsOffset =
-                        Vector3.new(
-                            0,
-                            0.1 +
-                            pulse * 0.2,
-                            0
-                        )
-
-                end
-
-            end
-
-        end
-
-    end
-)
-
---========================================================
--- RESPAWN PATH REFRESH
---========================================================
-
-Player.CharacterAdded:Connect(
-    function()
-
-        task.wait(1)
-
-        UpdateCharacter()
-
-        if Enabled
-        and TargetPosition then
-
-            PathVersion += 1
-
-            CurrentPath =
-                CalculatePath(
-                    TargetPosition
-                )
-
-            DrawPath()
-
-        end
-
-    end
-)
-
---========================================================
--- INITIAL
---========================================================
-
-HideRays()
-
-Toggle.Text =
-    "ON / OFF : OFF"
-
-ClickButton.Text =
-    "CLICK : SELECT"
+-- MAIN AI LOOP (RunService Heartbeat)
+RunService.Heartbeat:Connect(function(dt)
+	updateTarget()
+	
+	if not isAIActive or not npcModel or not npcHumanoid or not npcRootPart then
+		stateDisp.Text = "STATE: INACTIVE"
+		distDisp.Text = "DISTANCE: N/A"
+		speedDisp.Text = "SPEED: 0"
+		hpDisp.Text = "NPCHP: " .. currentHP
+		stuckDisp.Text = "STUCK: NO"
+		return
+	end
+	
+	if not targetRootPart or not targetHumanoid or targetHumanoid.Health <= 0 then
+		currentAIState = State.WAITING
+		stateDisp.Text = "STATE: WAITING (RESPAWN)"
+		return
+	end
+	
+	local distance = (targetRootPart.Position - npcRootPart.Position).Magnitude
+	
+	-- UI Updates
+	stateDisp.Text = "STATE: " .. currentAIState
+	distDisp.Text = string.format("DISTANCE: %.1f studs", distance)
+	speedDisp.Text = string.format("SPEED: %.1f", npcRootPart.Velocity.Magnitude)
+	hpDisp.Text = "NPCHP: " .. currentHP .. "/" .. CONFIG.MAX_HEALTH
+	
+	-- STATE MACHINE LOGIC
+	if currentAIState == State.WAITING then
+		if targetRootPart and targetHumanoid and targetHumanoid.Health > 0 then
+			currentAIState = State.CHASING
+		end
+		return
+	end
+	
+	-- Check Attack Range
+	if distance <= CONFIG.ATTACK_RANGE then
+		currentAIState = State.ATTACKING
+		npcHumanoid:MoveTo(npcRootPart.Position) -- Stop moving
+		
+		-- Look at target smoothly
+		local lookAtPos = Vector3.new(targetRootPart.Position.X, npcRootPart.Position.Y, targetRootPart.Position.Z)
+		npcRootPart.CFrame = CFrame.new(npcRootPart.Position, lookAtPos)
+		
+		if tick() - lastAttackTick >= CONFIG.ATTACK_COOLDOWN then
+			lastAttackTick = tick()
+			-- Simulate attack on LocalPlayer
+			if targetHumanoid then
+				targetHumanoid.Health = math.max(0, targetHumanoid.Health - 15)
+			end
+		end
+		return
+	end
+	
+	-- Stuck Detector
+	if (npcRootPart.Position - lastPositionForStuck).Magnitude < 1.0 then
+		if time() - lastStuckCheckTick > CONFIG.STUCK_TIMEOUT then
+			currentAIState = State.RECOVERING
+			lastStuckCheckTick = time()
+		end
+	else
+		lastStuckCheckTick = time()
+		lastPositionForStuck = npcRootPart.Position
+		stuckDisp.Text = "STUCK: NO"
+	end
+	
+	if currentAIState == State.RECOVERING then
+		stuckDisp.Text = "STUCK: YES (RECOVERING)"
+		npcHumanoid.Jump = true
+		npcHumanoid:MoveTo(npcRootPart.Position + Vector3.new(math.random(-8,8), 0, math.random(-8,8)))
+		task.wait(0.5)
+		currentAIState = State.CHASING
+		return
+	end
+	
+	-- Chasing & Repathing Loop
+	currentAIState = State.CHASING
+	npcHumanoid.WalkSpeed = CONFIG.CHASE_SPEED
+	
+	if tick() - lastRepathTick >= CONFIG.WAYPOINT_RECALC_INTERVAL then
+		lastRepathTick = tick()
+		local destination = getPredictedPosition()
+		computePath(destination)
+	end
+	
+	if waypoints and #waypoints > 0 then
+		if currentWaypointIndex <= #waypoints then
+			local waypoint = waypoints[currentWaypointIndex]
+			npcHumanoid:MoveTo(waypoint.Position)
+			
+			if waypoint.Action == Enum.PathWaypointAction.Jump then
+				npcHumanoid.Jump = true
+			end
+			
+			if (npcRootPart.Position - waypoint.Position).Magnitude < 4 then
+				currentWaypointIndex = currentWaypointIndex + 1
+			end
+		else
+			npcHumanoid:MoveTo(targetRootPart.Position)
+		end
+	else
+		npcHumanoid:MoveTo(targetRootPart.Position)
+	end
+end)
