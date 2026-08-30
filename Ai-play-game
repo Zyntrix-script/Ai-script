@@ -1,7 +1,7 @@
 --==============================================================
 -- MINI SLIDE EVADE 6D • COMPACT 50%
--- SLIDE + AUTO JUMP
--- MOBILE • DRAG • GLASS • GLOW
+-- SLIDE + AUTO JUMP SPAM
+-- MOBILE • DRAG • GLASS • GLOW • SPEED INPUT
 --==============================================================
 
 local Players = game:GetService("Players")
@@ -29,7 +29,7 @@ gui.IgnoreGuiInset = true
 gui.Parent = CoreGui
 
 --==============================================================
--- MAIN
+-- MAIN FRAME
 --==============================================================
 
 local frame = Instance.new("Frame")
@@ -115,7 +115,7 @@ toggleStroke.Color = Color3.fromRGB(70,90,120)
 toggleStroke.Parent = toggle
 
 --==============================================================
--- SPEED
+-- SPEED INPUT
 --==============================================================
 
 local box = Instance.new("TextBox")
@@ -154,7 +154,7 @@ jumpToggle.Size = UDim2.new(1,-10,0,22)
 jumpToggle.Position = UDim2.new(0,5,0,45)
 jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
 jumpToggle.BorderSizePixel = 0
-jumpToggle.Text = "AUTO JUMP OFF"
+jumpToggle.Text = "JUMP SPAM OFF"
 jumpToggle.Font = Enum.Font.GothamBold
 jumpToggle.TextSize = 8
 jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
@@ -194,8 +194,11 @@ status.Parent = frame
 
 local slideEnabled = false
 local autoJumpEnabled = false
+
 local speed = -8
-local jumpCooldown = 0.18
+
+-- Khoảng thời gian giữa mỗi lần spam Jump
+local jumpCooldown = 0.12
 local lastJump = 0
 
 --==============================================================
@@ -203,6 +206,7 @@ local lastJump = 0
 --==============================================================
 
 box.FocusLost:Connect(function()
+
     local n = tonumber(box.Text)
 
     if n then
@@ -211,6 +215,7 @@ box.FocusLost:Connect(function()
     else
         box.Text = tostring(speed)
     end
+
 end)
 
 --==============================================================
@@ -222,9 +227,11 @@ toggle.MouseButton1Click:Connect(function()
     slideEnabled = not slideEnabled
 
     if slideEnabled then
+
         toggle.Text = "SLIDE ON"
         toggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
         toggle.TextColor3 = Color3.fromRGB(235,245,255)
+
         toggleStroke.Color = Color3.fromRGB(80,180,255)
 
         stroke.Color = Color3.fromRGB(70,170,255)
@@ -239,25 +246,30 @@ toggle.MouseButton1Click:Connect(function()
         status.TextColor3 = Color3.fromRGB(80,190,255)
 
     else
+
         toggle.Text = "SLIDE OFF"
         toggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
         toggle.TextColor3 = Color3.fromRGB(170,180,200)
+
         toggleStroke.Color = Color3.fromRGB(70,90,120)
 
         if autoJumpEnabled then
-            status.Text = "● JUMP ACTIVE"
-            status.TextColor3 = Color3.fromRGB(100,190,255)
+            status.Text = "● JUMP SPAM"
+            status.TextColor3 = Color3.fromRGB(80,220,160)
         else
             status.Text = "● READY"
             status.TextColor3 = Color3.fromRGB(100,120,145)
+
             stroke.Color = Color3.fromRGB(80,150,255)
             glow.ImageTransparency = 0.72
         end
+
     end
+
 end)
 
 --==============================================================
--- AUTO JUMP TOGGLE
+-- AUTO JUMP SPAM TOGGLE
 --==============================================================
 
 jumpToggle.MouseButton1Click:Connect(function()
@@ -266,24 +278,26 @@ jumpToggle.MouseButton1Click:Connect(function()
 
     if autoJumpEnabled then
 
-        jumpToggle.Text = "AUTO JUMP ON"
+        jumpToggle.Text = "JUMP SPAM ON"
         jumpToggle.BackgroundColor3 = Color3.fromRGB(30,100,70)
         jumpToggle.TextColor3 = Color3.fromRGB(220,255,240)
+
         jumpStroke.Color = Color3.fromRGB(70,220,150)
 
         if slideEnabled then
             status.Text = "● SLIDE + JUMP"
         else
-            status.Text = "● JUMP ACTIVE"
+            status.Text = "● JUMP SPAM"
         end
 
         status.TextColor3 = Color3.fromRGB(80,220,160)
 
     else
 
-        jumpToggle.Text = "AUTO JUMP OFF"
+        jumpToggle.Text = "JUMP SPAM OFF"
         jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
         jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
+
         jumpStroke.Color = Color3.fromRGB(70,90,120)
 
         if slideEnabled then
@@ -293,7 +307,9 @@ jumpToggle.MouseButton1Click:Connect(function()
             status.Text = "● READY"
             status.TextColor3 = Color3.fromRGB(100,120,145)
         end
+
     end
+
 end)
 
 --==============================================================
@@ -303,6 +319,7 @@ end)
 RunService.RenderStepped:Connect(function()
 
     local char = LP.Character
+
     if not char then
         return
     end
@@ -329,15 +346,19 @@ RunService.RenderStepped:Connect(function()
     end
 
     --==========================================================
-    -- AUTO JUMP
+    -- AUTO JUMP SPAM
     --==========================================================
 
-    if autoJumpEnabled
-        and hum.MoveDirection.Magnitude > 0
-        and tick() - lastJump >= jumpCooldown then
+    if autoJumpEnabled then
 
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        lastJump = tick()
+        if tick() - lastJump >= jumpCooldown then
+
+            -- Spam lệnh Jump
+            hum.Jump = true
+
+            lastJump = tick()
+
+        end
 
     end
 
@@ -351,14 +372,29 @@ LP.CharacterAdded:Connect(function()
 
     task.wait(0.25)
 
+    -- Reset timer để bắt đầu spam lại ngay sau respawn
+    lastJump = 0
+
     if slideEnabled and autoJumpEnabled then
+
         status.Text = "● SLIDE + JUMP"
+        status.TextColor3 = Color3.fromRGB(80,220,160)
+
     elseif slideEnabled then
+
         status.Text = "● SLIDE ACTIVE"
+        status.TextColor3 = Color3.fromRGB(80,190,255)
+
     elseif autoJumpEnabled then
-        status.Text = "● JUMP ACTIVE"
+
+        status.Text = "● JUMP SPAM"
+        status.TextColor3 = Color3.fromRGB(80,220,160)
+
     else
+
         status.Text = "● READY"
+        status.TextColor3 = Color3.fromRGB(100,120,145)
+
     end
 
 end)
