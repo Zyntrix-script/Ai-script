@@ -1,2053 +1,776 @@
---// ============================================================
---// AI PLAYER PRO 90+ FEATURES
---// CLICK/TAP MAP = TARGET
---// WALK TO WAYPOINT / SMART RAYCAST / PARKOUR
---// MOBILE / DRAGGABLE / SINGLE UI
---// ============================================================
+--//========================================================
+--// AI PATH GUIDE 5D
+--// 2 NÚT DUY NHẤT:
+--// 1. ON / OFF
+--// 2. CLICK TARGET
+--//
+--// CHỈ DẪN ĐƯỜNG
+--// KHÔNG TỰ ĐIỀU KHIỂN NHÂN VẬT
+--// CLICK MAP -> TÌM ĐƯỜNG -> TỰ BẺ GÓC -> NEON GREEN RAY
+--// MOBILE + DRAG UI + ANTI DUPLICATE + CLEANUP
+--//========================================================
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local PathfindingService = game:GetService("PathfindingService")
-local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local PlayerGui = Player:WaitForChild("PlayerGui")
 
---==============================================================
+--========================================================
 -- CONFIG
---==============================================================
+--========================================================
 
 local CONFIG = {
-    Enabled = false,
+    MaxDistance = 2000,
 
-    Mode = "NORMAL",
+    AgentRadius = 2,
+    AgentHeight = 5,
 
-    Speed = 220,
-    MaxSpeed = 500,
+    WaypointSpacing = 4,
 
-    ScanRadius = 120,
-    ScanInterval = 0.18,
+    RayThickness = 0.12,
+    RayTransparency = 0.12,
 
-    WaypointReach = 4,
-    ArrivalThreshold = 5,
+    MarkerSize = 2.5,
 
-    ReactionDelay = 0.06,
+    MaxVisualSegments = 60,
 
-    JumpCooldown = 0.75,
-    JumpHeightCheck = 8,
-    MaxJumpDistance = 22,
+    RecalculateDelay = 0.12,
 
-    StuckTime = 1.5,
-    RecalculateTime = 2,
-
-    MaxWaypoints = 45,
-    MaxRouteVisuals = 18,
-
-    DangerDepth = 18,
-
-    Debug = false,
+    Green = Color3.fromRGB(57,255,20),
 }
 
---==============================================================
--- STATE
---==============================================================
+--========================================================
+-- REMOVE OLD VERSION
+--========================================================
 
-local State = "IDLE"
-
-local Character
-local Humanoid
-local Root
-
-local Target = nil
-local TargetNormal = nil
-local TargetPart = nil
-
-local Waypoints = {}
-local CurrentWaypoint = 1
-
-local LastPosition = nil
-local LastMoveTime = 0
-local LastJump = 0
-local LastScan = 0
-local LastRecalculate = 0
-
-local CurrentAction = "IDLE"
-
-local RouteMemory = {}
-local FailedRoutes = {}
-
-local Connections = {}
-
-local RunningToken = 0
-
---==============================================================
--- CLEAN OLD UI
---==============================================================
-
-local oldGui = Player.PlayerGui:FindFirstChild("AIPlayerPro75")
+local oldGui = PlayerGui:FindFirstChild("AIPathGuide5D")
 
 if oldGui then
     oldGui:Destroy()
 end
 
---==============================================================
+local oldFolder = workspace:FindFirstChild("AIPathGuide5D_VISUAL")
+
+if oldFolder then
+    oldFolder:Destroy()
+end
+
+--========================================================
+-- STATE
+--========================================================
+
+local Enabled = false
+local ClickMode = false
+
+local Character
+local Root
+
+local TargetPosition = nil
+local TargetNormal = nil
+
+local TargetMarker = nil
+
+local CurrentPath = {}
+local PathVersion = 0
+
+local RayPool = {}
+
+local Dragging = false
+local DragStart
+local StartPosition
+
+--========================================================
 -- CHARACTER
---==============================================================
+--========================================================
 
 local function UpdateCharacter()
+
     Character = Player.Character
 
-    if not Character then
-        Humanoid = nil
+    if Character then
+        Root = Character:FindFirstChild("HumanoidRootPart")
+    else
         Root = nil
-        return
     end
 
-    Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    Root = Character:FindFirstChild("HumanoidRootPart")
 end
 
 UpdateCharacter()
 
---==============================================================
+Player.CharacterAdded:Connect(function(character)
+
+    Character = character
+
+    task.wait(0.5)
+
+    UpdateCharacter()
+
+    -- Chỉ cập nhật visual, không tự điều khiển nhân vật
+    if Enabled and TargetPosition then
+        PathVersion += 1
+    end
+
+end)
+
+--========================================================
+-- VISUAL FOLDER
+--========================================================
+
+local VisualFolder = Instance.new("Folder")
+VisualFolder.Name = "AIPathGuide5D_VISUAL"
+VisualFolder.Parent = workspace
+
+--========================================================
 -- UI
---==============================================================
+--========================================================
 
 local Gui = Instance.new("ScreenGui")
-Gui.Name = "AIPlayerPro75"
+Gui.Name = "AIPathGuide5D"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
-Gui.Parent = Player:WaitForChild("PlayerGui")
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = PlayerGui
 
 local Main = Instance.new("Frame")
 Main.Name = "Main"
-Main.Size = UDim2.fromOffset(180, 76)
-Main.Position = UDim2.new(0.5, -90, 0.72, 0)
+Main.Size = UDim2.fromOffset(180,88)
+Main.Position = UDim2.new(0.5,-90,0.70,0)
 
-Main.BackgroundColor3 = Color3.fromRGB(5, 15, 30)
+Main.BackgroundColor3 = Color3.fromRGB(5,14,28)
 Main.BackgroundTransparency = 0.30
 Main.BorderSizePixel = 0
 Main.Active = true
+
 Main.Parent = Gui
 
 local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 15)
+Corner.CornerRadius = UDim.new(0,14)
 Corner.Parent = Main
 
 local Stroke = Instance.new("UIStroke")
 Stroke.Thickness = 2
-Stroke.Color = Color3.fromRGB(30, 150, 255)
-Stroke.Transparency = 0.08
+Stroke.Color = Color3.fromRGB(30,150,255)
+Stroke.Transparency = 0.05
 Stroke.Parent = Main
+
+--========================================================
+-- TITLE
+--========================================================
 
 local Title = Instance.new("TextLabel")
 Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1, -10, 0, 20)
-Title.Position = UDim2.fromOffset(5, 3)
-Title.Text = "AI PLAYER PRO"
+Title.Size = UDim2.new(1,-10,0,18)
+Title.Position = UDim2.fromOffset(5,3)
+
+Title.Text = "AI PATH GUIDE 5D"
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 12
-Title.TextColor3 = Color3.fromRGB(90, 190, 255)
+Title.TextSize = 11
+Title.TextColor3 = Color3.fromRGB(90,190,255)
+
 Title.Parent = Main
 
+--========================================================
+-- ON OFF BUTTON
+--========================================================
+
 local Toggle = Instance.new("TextButton")
-Toggle.Size = UDim2.new(1, -12, 0, 27)
-Toggle.Position = UDim2.fromOffset(6, 25)
-Toggle.BackgroundColor3 = Color3.fromRGB(12, 35, 65)
-Toggle.BackgroundTransparency = 0.15
+Toggle.Name = "OnOff"
+Toggle.Size = UDim2.new(1,-12,0,27)
+Toggle.Position = UDim2.fromOffset(6,23)
+
+Toggle.BackgroundColor3 = Color3.fromRGB(10,35,65)
+Toggle.BackgroundTransparency = 0.12
 Toggle.BorderSizePixel = 0
-Toggle.Text = "AI : OFF"
+
+Toggle.Text = "ON / OFF : OFF"
 Toggle.Font = Enum.Font.GothamBold
-Toggle.TextSize = 11
-Toggle.TextColor3 = Color3.fromRGB(255, 90, 90)
+Toggle.TextSize = 10
+Toggle.TextColor3 = Color3.fromRGB(255,90,90)
+
 Toggle.AutoButtonColor = false
 Toggle.Parent = Main
 
 local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 9)
+ToggleCorner.CornerRadius = UDim.new(0,8)
 ToggleCorner.Parent = Toggle
 
-local Status = Instance.new("TextLabel")
-Status.BackgroundTransparency = 1
-Status.Size = UDim2.new(1, -10, 0, 20)
-Status.Position = UDim2.fromOffset(5, 53)
-Status.Text = "● IDLE"
-Status.Font = Enum.Font.GothamMedium
-Status.TextSize = 9
-Status.TextColor3 = Color3.fromRGB(255, 90, 90)
-Status.Parent = Main
+--========================================================
+-- CLICK BUTTON
+--========================================================
 
---==============================================================
--- UI STATUS
---==============================================================
+local ClickButton = Instance.new("TextButton")
+ClickButton.Name = "ClickTarget"
+ClickButton.Size = UDim2.new(1,-12,0,27)
+ClickButton.Position = UDim2.fromOffset(6,53)
 
-local function SetState(newState, action)
-    State = newState
-    CurrentAction = action or newState
+ClickButton.BackgroundColor3 = Color3.fromRGB(10,35,65)
+ClickButton.BackgroundTransparency = 0.12
+ClickButton.BorderSizePixel = 0
 
-    Status.Text = "● " .. tostring(newState)
+ClickButton.Text = "CLICK : SELECT"
+ClickButton.Font = Enum.Font.GothamBold
+ClickButton.TextSize = 10
+ClickButton.TextColor3 = Color3.fromRGB(100,180,255)
 
-    if newState == "IDLE"
-    or newState == "STOPPED"
-    or newState == "ARRIVED" then
+ClickButton.AutoButtonColor = false
+ClickButton.Parent = Main
 
-        Status.TextColor3 = Color3.fromRGB(100, 180, 255)
+local ClickCorner = Instance.new("UICorner")
+ClickCorner.CornerRadius = UDim.new(0,8)
+ClickCorner.Parent = ClickButton
 
-    elseif newState == "JUMPING"
-    or newState == "AIR_CONTROL" then
-
-        Status.TextColor3 = Color3.fromRGB(255, 210, 80)
-
-    elseif newState == "RECOVERING"
-    or newState == "RECALCULATING" then
-
-        Status.TextColor3 = Color3.fromRGB(255, 150, 60)
-
-    else
-
-        Status.TextColor3 = Color3.fromRGB(80, 255, 130)
-
-    end
-end
-
---==============================================================
--- VISUAL FOLDER
---==============================================================
-
-local VisualFolder = workspace:FindFirstChild("AIPlayerProVisual")
-
-if VisualFolder then
-    VisualFolder:Destroy()
-end
-
-VisualFolder = Instance.new("Folder")
-VisualFolder.Name = "AIPlayerProVisual"
-VisualFolder.Parent = workspace
-
---==============================================================
+--========================================================
 -- TARGET MARKER
---==============================================================
-
-local Marker = nil
+--========================================================
 
 local function RemoveMarker()
-    if Marker then
-        Marker:Destroy()
-        Marker = nil
+
+    if TargetMarker then
+        TargetMarker:Destroy()
+        TargetMarker = nil
     end
+
 end
 
-local function CreateMarker(position, normal)
+local function CreateMarker(position,normal)
 
     RemoveMarker()
 
-    local p = Instance.new("Part")
-    p.Name = "AITargetMarker"
-    p.Size = Vector3.new(2.5, 0.08, 2.5)
-    p.Anchored = true
-    p.CanCollide = false
-    p.CanTouch = false
-    p.CanQuery = false
-    p.Transparency = 1
-    p.CFrame =
-        CFrame.lookAt(
-            position + normal * 0.06,
-            position + normal,
-            Vector3.new(0, 1, 0)
+    local part = Instance.new("Part")
+
+    part.Name = "TargetMarker"
+
+    part.Size =
+        Vector3.new(
+            CONFIG.MarkerSize,
+            0.08,
+            CONFIG.MarkerSize
         )
 
-    p.Parent = VisualFolder
+    part.Anchored = true
 
-    local gui = Instance.new("BillboardGui")
-    gui.Name = "TargetImage"
-    gui.Size = UDim2.fromOffset(54, 54)
-    gui.AlwaysOnTop = true
-    gui.LightInfluence = 0
-    gui.StudsOffset = Vector3.new(0, 0.1, 0)
-    gui.Parent = p
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
 
-    local image = Instance.new("ImageLabel")
+    part.Transparency = 1
+
+    part.CFrame =
+        CFrame.lookAt(
+            position + normal * 0.05,
+            position + normal
+        )
+
+    part.Parent = VisualFolder
+
+    local billboard =
+        Instance.new("BillboardGui")
+
+    billboard.Name = "TargetImage"
+
+    billboard.Size =
+        UDim2.fromOffset(55,55)
+
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+
+    billboard.Parent = part
+
+    local image =
+        Instance.new("ImageLabel")
+
     image.BackgroundTransparency = 1
-    image.Size = UDim2.fromScale(1, 1)
-    image.Image = "rbxassetid://71165623455163"
-    image.ImageTransparency = 0.08
-    image.Parent = gui
 
-    Marker = p
+    image.Size =
+        UDim2.fromScale(1,1)
+
+    image.Image =
+        "rbxassetid://71165623455163"
+
+    image.ImageTransparency = 0.05
+
+    image.Parent = billboard
+
+    TargetMarker = part
+
 end
 
---==============================================================
--- RAY VISUAL POOL
---==============================================================
+--========================================================
+-- RAY POOL
+--========================================================
 
-local RayPool = {}
-
-local function GetRayPart(index)
+local function GetRay(index)
 
     if RayPool[index] then
         return RayPool[index]
     end
 
-    local p = Instance.new("Part")
-    p.Name = "AIRay"
-    p.Anchored = true
-    p.CanCollide = false
-    p.CanTouch = false
-    p.CanQuery = false
-    p.Material = Enum.Material.Neon
-    p.Color = Color3.fromRGB(57, 255, 20)
-    p.Transparency = 0.22
-    p.Size = Vector3.new(0.09, 0.09, 1)
-    p.Parent = VisualFolder
+    local part = Instance.new("Part")
 
-    RayPool[index] = p
+    part.Name = "GuideRay_" .. index
 
-    return p
+    part.Anchored = true
+
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+
+    part.Material = Enum.Material.Neon
+
+    part.Color = CONFIG.Green
+
+    part.Transparency =
+        CONFIG.RayTransparency
+
+    part.Size =
+        Vector3.new(
+            CONFIG.RayThickness,
+            CONFIG.RayThickness,
+            1
+        )
+
+    part.Parent = VisualFolder
+
+    RayPool[index] = part
+
+    return part
+
 end
 
-local function DrawRay(index, a, b, color, transparency)
+--========================================================
+-- DRAW ONE RAY
+--========================================================
 
-    local p = GetRayPart(index)
+local function DrawRay(index,a,b)
 
     if not a or not b then
-        p.Transparency = 1
         return
     end
 
-    local distance = (b - a).Magnitude
+    local ray = GetRay(index)
 
-    if distance < 0.1 then
-        p.Transparency = 1
+    local distance =
+        (b-a).Magnitude
+
+    if distance <= 0.05 then
+
+        ray.Transparency = 1
+
         return
     end
 
-    p.Color = color or Color3.fromRGB(57, 255, 20)
-    p.Transparency = transparency or 0.22
-    p.Size = Vector3.new(0.09, 0.09, distance)
-    p.CFrame = CFrame.lookAt((a + b) / 2, b)
+    ray.Transparency =
+        CONFIG.RayTransparency
+
+    ray.Size =
+        Vector3.new(
+            CONFIG.RayThickness,
+            CONFIG.RayThickness,
+            distance
+        )
+
+    ray.CFrame =
+        CFrame.lookAt(
+            (a+b)/2,
+            b
+        )
+
 end
+
+--========================================================
+-- HIDE RAYS
+--========================================================
 
 local function HideRays()
 
-    for _, p in pairs(RayPool) do
-        p.Transparency = 1
+    for _,ray in pairs(RayPool) do
+
+        ray.Transparency = 1
+
     end
 
 end
 
---==============================================================
--- NODE VISUAL
---==============================================================
+--========================================================
+-- CLEAR PATH
+--========================================================
 
-local NodePool = {}
+local function ClearPath()
 
-local function DrawNode(index, position, dangerous)
+    CurrentPath = {}
 
-    local p = NodePool[index]
+    HideRays()
 
-    if not p then
-        p = Instance.new("Part")
-        p.Name = "AINode"
-        p.Shape = Enum.PartType.Ball
-        p.Size = Vector3.new(0.35, 0.35, 0.35)
-        p.Anchored = true
-        p.CanCollide = false
-        p.CanTouch = false
-        p.CanQuery = false
-        p.Material = Enum.Material.Neon
-        p.Parent = VisualFolder
-        NodePool[index] = p
-    end
-
-    p.Position = position
-    p.Color =
-        dangerous
-        and Color3.fromRGB(255, 60, 60)
-        or Color3.fromRGB(57, 255, 20)
-
-    p.Transparency =
-        CONFIG.Debug and 0.15 or 1
 end
 
---==============================================================
+--========================================================
 -- RAYCAST PARAMS
---==============================================================
+--========================================================
 
-local RayParams = RaycastParams.new()
-RayParams.FilterType = Enum.RaycastFilterType.Exclude
+local RayParams =
+    RaycastParams.new()
+
+RayParams.FilterType =
+    Enum.RaycastFilterType.Exclude
 
 local function UpdateRayFilter()
 
-    local list = {VisualFolder}
+    local filter = {
+        VisualFolder
+    }
 
     if Character then
-        table.insert(list, Character)
+        table.insert(
+            filter,
+            Character
+        )
     end
 
-    RayParams.FilterDescendantsInstances = list
+    RayParams.FilterDescendantsInstances =
+        filter
+
 end
 
---==============================================================
--- RAYCAST
---==============================================================
+--========================================================
+-- PATHFINDING
+--========================================================
 
-local function Cast(origin, direction)
+local function CalculatePath(target)
+
+    if not target then
+        return {}
+    end
 
     UpdateRayFilter()
 
-    return workspace:Raycast(
-        origin,
-        direction,
-        RayParams
-    )
-end
+    local start
 
---==============================================================
--- MAP SCANNER
---==============================================================
-
-local function ScanEnvironment()
-
-    if not Root then
+    if Root then
+        start = Root.Position
+    else
         return {}
     end
-
-    local origin = Root.Position
-    local radius = CONFIG.ScanRadius
-
-    local result = {
-        Ground = nil,
-        Forward = nil,
-        Left = nil,
-        Right = nil,
-        Up = nil,
-        Down = nil,
-
-        DiagonalLeft = nil,
-        DiagonalRight = nil,
-
-        Wall = false,
-        Edge = false,
-        Gap = false,
-        Ceiling = false,
-        Slope = false,
-        Stair = false,
-        Obstacle = false,
-        Player = false,
-        NPC = false,
-        KillPart = false,
-    }
-
-    result.Forward =
-        Cast(
-            origin + Vector3.new(0, 2, 0),
-            Root.CFrame.LookVector * radius
-        )
-
-    result.Left =
-        Cast(
-            origin + Vector3.new(0, 2, 0),
-            -Root.CFrame.RightVector * 12
-        )
-
-    result.Right =
-        Cast(
-            origin + Vector3.new(0, 2, 0),
-            Root.CFrame.RightVector * 12
-        )
-
-    result.Up =
-        Cast(
-            origin,
-            Vector3.new(0, 15, 0)
-        )
-
-    result.Down =
-        Cast(
-            origin,
-            Vector3.new(0, -25, 0)
-        )
-
-    result.DiagonalLeft =
-        Cast(
-            origin + Vector3.new(0, 2, 0),
-            (
-                Root.CFrame.LookVector -
-                Root.CFrame.RightVector * 0.65
-            ).Unit * 15
-        )
-
-    result.DiagonalRight =
-        Cast(
-            origin + Vector3.new(0, 2, 0),
-            (
-                Root.CFrame.LookVector +
-                Root.CFrame.RightVector * 0.65
-            ).Unit * 15
-        )
-
-    result.Ground =
-        Cast(
-            origin + Vector3.new(0, 1, 0),
-            Vector3.new(0, -8, 0)
-        )
-
-    if result.Forward then
-
-        result.Wall =
-            math.abs(
-                result.Forward.Normal.Y
-            ) < 0.35
-
-        result.Obstacle = true
-
-        local hit = result.Forward.Instance
-
-        if hit then
-
-            if CollectionService:HasTag(
-                hit,
-                "KillPart"
-            ) then
-
-                result.KillPart = true
-
-            end
-
-            local n = hit.Name:lower()
-
-            if n:find("lava")
-            or n:find("kill")
-            or n:find("void")
-            or n:find("death") then
-
-                result.KillPart = true
-
-            end
-
-        end
-
-    end
-
-    if result.Up then
-        result.Ceiling = true
-    end
-
-    if not result.Down then
-        result.Gap = true
-    end
-
-    if result.Ground then
-
-        local normalY =
-            result.Ground.Normal.Y
-
-        if normalY < 0.75
-        and normalY > 0.25 then
-
-            result.Slope = true
-
-        end
-
-        if normalY > 0.92 then
-            result.Stair = true
-        end
-
-    end
-
-    local function CheckPlayer(hit)
-
-        if not hit then
-            return false
-        end
-
-        local model =
-            hit.Instance:FindFirstAncestorOfClass(
-                "Model"
-            )
-
-        if not model then
-            return false
-        end
-
-        if Players:GetPlayerFromCharacter(
-            model
-        ) then
-
-            return true
-
-        end
-
-        if model:FindFirstChildOfClass(
-            "Humanoid"
-        ) then
-
-            return true
-
-        end
-
-        return false
-
-    end
-
-    result.Player =
-        CheckPlayer(result.Forward)
-
-    result.NPC =
-        CheckPlayer(result.Forward)
-
-    if result.Gap then
-        result.Edge = true
-    end
-
-    return result
-end
-
---==============================================================
--- SAFE POSITION CHECK
---==============================================================
-
-local function IsSafePosition(position)
-
-    local ground =
-        Cast(
-            position + Vector3.new(0, 3, 0),
-            Vector3.new(0, -12, 0)
-        )
-
-    if not ground then
-        return false
-    end
-
-    if ground.Normal.Y < 0.45 then
-        return false
-    end
-
-    local hit =
-        ground.Instance
-
-    if hit then
-
-        local name =
-            hit.Name:lower()
-
-        if name:find("lava")
-        or name:find("kill")
-        or name:find("death")
-        or name:find("void") then
-
-            return false
-
-        end
-
-    end
-
-    return true
-end
-
---==============================================================
--- LINE OF SIGHT
---==============================================================
-
-local function HasLineOfSight(a, b)
-
-    local hit =
-        Cast(
-            a,
-            b - a
-        )
-
-    return hit == nil
-end
-
---==============================================================
--- PATH MEMORY
---==============================================================
-
-local function MemoryKey(a, b)
-
-    return
-        math.floor(a.X / 8)
-        .. ":"
-        .. math.floor(a.Z / 8)
-        .. ">"
-        .. math.floor(b.X / 8)
-        .. ":"
-        .. math.floor(b.Z / 8)
-
-end
-
-local function RememberRoute(route)
-
-    if not route or #route == 0 then
-        return
-    end
-
-    local first = route[1]
-    local last = route[#route]
-
-    local key =
-        MemoryKey(
-            first,
-            last
-        )
-
-    RouteMemory[key] = {
-        route = route,
-        score = 1,
-        time = os.clock()
-    }
-
-    local count = 0
-
-    for _ in pairs(RouteMemory) do
-        count += 1
-    end
-
-    if count > 40 then
-
-        local oldestKey
-        local oldestTime = math.huge
-
-        for k, data in pairs(RouteMemory) do
-
-            if data.time < oldestTime then
-                oldestTime = data.time
-                oldestKey = k
-            end
-
-        end
-
-        if oldestKey then
-            RouteMemory[oldestKey] = nil
-        end
-
-    end
-end
-
---==============================================================
--- PATHFINDING
---==============================================================
-
-local function BuildPath(target)
-
-    if not Root or not target then
-        return {}
-    end
-
-    SetState(
-        "CALCULATING",
-        "BUILDING ROUTE"
-    )
 
     local path =
         PathfindingService:CreatePath({
-            AgentRadius = 2,
-            AgentHeight = 5,
+            AgentRadius =
+                CONFIG.AgentRadius,
+
+            AgentHeight =
+                CONFIG.AgentHeight,
+
             AgentCanJump = true,
+
             AgentCanClimb = true,
 
-            WaypointSpacing = 4,
-
-            Costs = {
-                Water = 5,
-                Danger = 1000,
-            }
+            WaypointSpacing =
+                CONFIG.WaypointSpacing,
         })
 
-    local ok =
-        pcall(
-            function()
+    local success =
+        pcall(function()
 
-                path:ComputeAsync(
-                    Root.Position,
-                    target
-                )
+            path:ComputeAsync(
+                start,
+                target
+            )
 
-            end
-        )
+        end)
 
-    if ok
-    and path.Status ==
+    if not success then
+        return {}
+    end
+
+    if path.Status ~=
         Enum.PathStatus.Success then
 
-        local points = {}
-
-        for _, wp in ipairs(
-            path:GetWaypoints()
-        ) do
-
-            if #points >=
-                CONFIG.MaxWaypoints then
-                break
-            end
-
-            local position =
-                wp.Position
-
-            local safe =
-                IsSafePosition(
-                    position
-                )
-
-            table.insert(
-                points,
-                {
-                    Position = position,
-                    Action = wp.Action,
-                    Safe = safe,
-                }
-            )
-
-        end
-
-        if #points > 0 then
-            return points
-        end
-
+        return {}
     end
 
-    --==========================================================
-    -- FALLBACK SMART NODES
-    --==========================================================
+    local points = {}
 
-    local nodes = {}
-
-    local origin =
-        Root.Position
-
-    local directions = {
-        Vector3.new(0, 0, -1),
-        Vector3.new(1, 0, -1).Unit,
-        Vector3.new(-1, 0, -1).Unit,
-        Vector3.new(1, 0, 0),
-        Vector3.new(-1, 0, 0),
-        Vector3.new(1, 0, 1).Unit,
-        Vector3.new(-1, 0, 1).Unit,
-        Vector3.new(0, 0, 1),
-    }
-
-    local distance =
-        math.clamp(
-            (target - origin).Magnitude / 4,
-            4,
-            16
-        )
-
-    for _, dir in ipairs(
-        directions
+    for _,waypoint in ipairs(
+        path:GetWaypoints()
     ) do
 
-        local p =
-            origin +
-            dir * distance
+        if #points >=
+            CONFIG.MaxVisualSegments then
 
-        local ray =
-            Cast(
-                p + Vector3.new(0, 8, 0),
-                Vector3.new(0, -18, 0)
-            )
-
-        if ray
-        and ray.Normal.Y > 0.45 then
-
-            local node =
-                ray.Position +
-                Vector3.new(0, 2.5, 0)
-
-            local safe =
-                IsSafePosition(node)
-
-            table.insert(
-                nodes,
-                {
-                    Position = node,
-                    Action =
-                        Enum.PathWaypointAction.Walk,
-                    Safe = safe,
-                }
-            )
+            break
 
         end
-
-    end
-
-    table.sort(
-        nodes,
-        function(a, b)
-
-            local da =
-                (a.Position - target).Magnitude
-
-            local db =
-                (b.Position - target).Magnitude
-
-            local sa =
-                a.Safe and 0 or 100
-
-            local sb =
-                b.Safe and 0 or 100
-
-            return da + sa <
-                db + sb
-
-        end
-    )
-
-    if #nodes > 0 then
 
         table.insert(
-            nodes,
+            points,
             {
-                Position = target,
+                Position =
+                    waypoint.Position,
+
                 Action =
-                    Enum.PathWaypointAction.Walk,
-                Safe = true,
+                    waypoint.Action,
             }
         )
 
     end
 
-    return nodes
+    return points
+
 end
 
---==============================================================
--- JUMP PREDICTION
---==============================================================
+--========================================================
+-- DRAW PATH
+--========================================================
 
-local function PredictLanding(target)
+local function DrawPath()
+
+    HideRays()
+
+    if not Enabled then
+        return
+    end
 
     if not Root then
-        return nil
+        return
     end
 
-    local velocity =
-        Root.AssemblyLinearVelocity
-
-    local horizontal =
-        Vector3.new(
-            velocity.X,
-            0,
-            velocity.Z
-        )
-
-    local delta =
-        target - Root.Position
-
-    local horizontalDistance =
-        Vector3.new(
-            delta.X,
-            0,
-            delta.Z
-        ).Magnitude
-
-    local gravity =
-        workspace.Gravity
-
-    local jumpPower =
-        Humanoid
-        and Humanoid.JumpPower
-        or 50
-
-    local airtime =
-        math.clamp(
-            horizontalDistance /
-            math.max(
-                horizontal.Magnitude,
-                18
-            ),
-            0.25,
-            1.5
-        )
-
-    local vertical =
-        jumpPower * airtime -
-        0.5 * gravity *
-        airtime *
-        airtime
-
-    return
-        Root.Position +
-        horizontal * airtime +
-        Vector3.new(
-            0,
-            vertical,
-            0
-        )
-end
-
---==============================================================
--- JUMP CONFIDENCE
---==============================================================
-
-local function GetJumpConfidence(target)
-
-    if not Root or not target then
-        return 0
-    end
-
-    local delta =
-        target - Root.Position
-
-    local horizontal =
-        Vector3.new(
-            delta.X,
-            0,
-            delta.Z
-        ).Magnitude
-
-    local vertical =
-        math.abs(delta.Y)
-
-    local score = 100
-
-    if horizontal >
-        CONFIG.MaxJumpDistance then
-
-        score -= 60
-
-    end
-
-    if vertical >
-        CONFIG.JumpHeightCheck then
-
-        score -= 30
-
-    end
-
-    local landing =
-        PredictLanding(target)
-
-    if landing then
-
-        local safe =
-            IsSafePosition(
-                landing
-            )
-
-        if not safe then
-            score -= 50
-        end
-
-    else
-
-        score -= 30
-
-    end
-
-    return math.clamp(
-        score,
-        0,
-        100
-    )
-end
-
---==============================================================
--- SMART JUMP
---==============================================================
-
-local function SmartJump(target)
-
-    if not Humanoid or
-        not Root or
-        not target then
-
-        return false
-
-    end
-
-    if os.clock() - LastJump <
-        CONFIG.JumpCooldown then
-
-        return false
-
-    end
-
-    local confidence =
-        GetJumpConfidence(
-            target
-        )
-
-    local required = 55
-
-    if CONFIG.Mode == "SAFE" then
-        required = 75
-    elseif CONFIG.Mode == "PRO" then
-        required = 45
-    end
-
-    if confidence < required then
-        return false
-    end
-
-    SetState(
-        "PREPARING_JUMP",
-        "JUMP CONFIDENCE "
-        .. math.floor(confidence)
-    )
-
-    task.wait(
-        CONFIG.ReactionDelay
-    )
-
-    if not CONFIG.Enabled then
-        return false
-    end
-
-    local landing =
-        PredictLanding(target)
-
-    if landing then
-
-        DrawRay(
-            5,
-            Root.Position,
-            landing,
-            Color3.fromRGB(
-                57,
-                255,
-                20
-            ),
-            0.18
-        )
-
-    end
-
-    LastJump = os.clock()
-
-    Humanoid.Jump = true
-
-    SetState(
-        "JUMPING",
-        "SMART JUMP"
-    )
-
-    return true
-end
-
---==============================================================
--- OBSTACLE AVOIDANCE
---==============================================================
-
-local function AvoidObstacle(scan)
-
-    if not Root or not Humanoid then
-        return false
-    end
-
-    if not scan.Obstacle
-    and not scan.Player
-    and not scan.NPC then
-
-        return false
-
-    end
-
-    SetState(
-        "AVOIDING",
-        "OBSTACLE AVOIDANCE"
-    )
-
-    local left =
-        Cast(
-            Root.Position +
-                Vector3.new(0, 2, 0),
-            -Root.CFrame.RightVector * 8
-        )
-
-    local right =
-        Cast(
-            Root.Position +
-                Vector3.new(0, 2, 0),
-            Root.CFrame.RightVector * 8
-        )
-
-    local leftSafe =
-        not left
-
-    local rightSafe =
-        not right
-
-    if leftSafe
-    and not rightSafe then
-
-        Humanoid:Move(
-            -Root.CFrame.RightVector,
-            false
-        )
-
-    elseif rightSafe
-    and not leftSafe then
-
-        Humanoid:Move(
-            Root.CFrame.RightVector,
-            false
-        )
-
-    elseif leftSafe
-    and rightSafe then
-
-        local target =
-            Target
-
-        if target then
-
-            local lp =
-                (
-                    Root.Position -
-                    Root.CFrame.RightVector * 5 -
-                    target
-                ).Magnitude
-
-            local rp =
-                (
-                    Root.Position +
-                    Root.CFrame.RightVector * 5 -
-                    target
-                ).Magnitude
-
-            if lp < rp then
-
-                Humanoid:Move(
-                    -Root.CFrame.RightVector,
-                    false
-                )
-
-            else
-
-                Humanoid:Move(
-                    Root.CFrame.RightVector,
-                    false
-                )
-
-            end
-
-        end
-
-    else
-
-        Humanoid:Move(
-            -Root.CFrame.LookVector,
-            false
-        )
-
-    end
-
-    task.wait(0.12)
-
-    return true
-end
-
---==============================================================
--- SPEED CONTROL
---==============================================================
-
-local function GetCurrentSpeed()
-
-    local speed = CONFIG.Speed
-
-    if CONFIG.Mode == "SAFE" then
-        speed = math.min(speed, 80)
-    elseif CONFIG.Mode == "NORMAL" then
-        speed = math.min(speed, 220)
-    elseif CONFIG.Mode == "PRO" then
-        speed = math.min(speed, 500)
-    end
-
-    return math.clamp(
-        speed,
-        1,
-        CONFIG.MaxSpeed
-    )
-end
-
---==============================================================
--- HUMAN-LIKE SPEED
---==============================================================
-
-local function CalculateMovementSpeed(scan)
-
-    local speed =
-        GetCurrentSpeed()
-
-    if scan.Edge
-    or scan.Gap then
-
-        speed *= 0.35
-
-    elseif scan.Obstacle
-    or scan.Player
-    or scan.NPC then
-
-        speed *= 0.55
-
-    elseif Target and Root then
-
-        local d =
-            (Target - Root.Position).Magnitude
-
-        if d < 20 then
-            speed *= 0.55
-        elseif d < 8 then
-            speed *= 0.35
-        end
-
-    end
-
-    return math.max(
-        speed,
-        8
-    )
-end
-
---==============================================================
--- MOVING PLATFORM DETECTION
---==============================================================
-
-local function IsMovingPlatform(part)
-
-    if not part
-    or not part:IsA("BasePart") then
-
-        return false
-    end
-
-    return
-        part.AssemblyLinearVelocity.Magnitude >
-        1
-end
-
---==============================================================
--- PLATFORM WIDTH
---==============================================================
-
-local function PlatformWidth(part)
-
-    if not part
-    or not part:IsA("BasePart") then
-
-        return 0
-    end
-
-    return math.max(
-        part.Size.X,
-        part.Size.Z
-    )
-end
-
---==============================================================
--- WALK WAYPOINT
---==============================================================
-
-local function WalkWaypoint(data)
-
-    if not data
-    or not Root
-    or not Humanoid then
-
-        return false
-    end
-
-    local target =
-        data.Position
-
-    local distance =
-        (Root.Position - target).Magnitude
-
-    if distance <=
-        CONFIG.WaypointReach then
-
-        return true
-    end
-
-    local scan =
-        ScanEnvironment()
-
-    --==========================================================
-    -- DANGER
-    --==========================================================
-
-    if scan.KillPart then
-
-        SetState(
-            "RECALCULATING",
-            "DANGER DETECTED"
-        )
-
-        return false
-    end
-
-    --==========================================================
-    -- OBSTACLE
-    --==========================================================
-
-    if AvoidObstacle(scan) then
-        return true
-    end
-
-    --==========================================================
-    -- GAP / JUMP
-    --==========================================================
-
-    if scan.Gap
-    or data.Action ==
-        Enum.PathWaypointAction.Jump then
-
-        SmartJump(
-            target
-        )
-
-    end
-
-    --==========================================================
-    -- CLIMB / PARKOUR
-    --==========================================================
-
-    if data.Action ==
-        Enum.PathWaypointAction.Jump then
-
-        SmartJump(
-            target
-        )
-
-    end
-
-    --==========================================================
-    -- SPEED
-    --==========================================================
-
-    Humanoid.WalkSpeed =
-        CalculateMovementSpeed(
-            scan
-        )
-
-    --==========================================================
-    -- SMOOTH DIRECTION
-    --==========================================================
-
-    local direction =
-        target -
+    local previous =
         Root.Position
 
-    if direction.Magnitude > 0.1 then
+    for i,point in ipairs(
+        CurrentPath
+    ) do
 
-        local unit =
-            direction.Unit
+        local position =
+            point.Position
 
-        Humanoid:Move(
-            unit,
-            false
+        -- Tự bẻ góc theo waypoint
+        DrawRay(
+            i,
+            previous,
+            position
         )
 
-    end
-
-    Humanoid:MoveTo(
-        target
-    )
-
-    return true
-end
-
---==============================================================
--- ROUTE VISUAL
---==============================================================
-
-local function DrawRoute()
-
-    for i = 1, CONFIG.MaxRouteVisuals do
-
-        local data =
-            Waypoints[i]
-
-        if data then
-
-            DrawNode(
-                i,
-                data.Position,
-                not data.Safe
-            )
-
-            local previous
-
-            if i == 1 then
-                previous =
-                    Root
-                    and Root.Position
-            else
-                previous =
-                    Waypoints[i - 1]
-                    and Waypoints[i - 1].Position
-            end
-
-            if previous then
-
-                local color
-
-                if data.Safe then
-                    color =
-                        Color3.fromRGB(
-                            57,
-                            255,
-                            20
-                        )
-                else
-                    color =
-                        Color3.fromRGB(
-                            255,
-                            60,
-                            60
-                        )
-                end
-
-                DrawRay(
-                    i + 10,
-                    previous,
-                    data.Position,
-                    color,
-                    0.22
-                )
-
-            end
-
-        else
-
-            DrawNode(
-                i,
-                Vector3.zero,
-                false
-            )
-
-            local node =
-                NodePool[i]
-
-            if node then
-                node.Transparency = 1
-            end
-
-            local ray =
-                RayPool[i + 10]
-
-            if ray then
-                ray.Transparency = 1
-            end
-
-        end
+        previous = position
 
     end
 
-end
-
---==============================================================
--- TARGET RAYS
---==============================================================
-
-local function DrawTargetVisual()
-
-    if not Root or not Target then
-        return
-    end
-
-    DrawRay(
-        1,
-        Root.Position,
-        Target,
-        Color3.fromRGB(
-            57,
-            255,
-            20
-        ),
-        0.15
-    )
-
-    if Waypoints[CurrentWaypoint] then
+    -- Đoạn cuối tới target
+    if TargetPosition
+    and previous then
 
         DrawRay(
-            2,
-            Root.Position,
-            Waypoints[
-                CurrentWaypoint
-            ].Position,
-            Color3.fromRGB(
-                57,
-                255,
-                20
-            ),
-            0.20
+            #CurrentPath + 1,
+            previous,
+            TargetPosition
         )
 
     end
 
 end
 
---==============================================================
--- ARRIVAL
---==============================================================
-
-local function CheckArrival()
-
-    if not Root or not Target then
-        return false
-    end
-
-    local distance =
-        (Root.Position - Target).Magnitude
-
-    if distance <=
-        CONFIG.ArrivalThreshold then
-
-        SetState(
-            "ARRIVED",
-            "TARGET REACHED"
-        )
-
-        if Humanoid then
-
-            Humanoid:Move(
-                Vector3.zero,
-                false
-            )
-
-            Humanoid:MoveTo(
-                Root.Position
-            )
-
-        end
-
-        RemoveMarker()
-
-        Waypoints = {}
-        CurrentWaypoint = 1
-
-        return true
-    end
-
-    return false
-end
-
---==============================================================
--- STUCK DETECTION
---==============================================================
-
-local function CheckStuck()
-
-    if not Root then
-        return false
-    end
-
-    local position =
-        Root.Position
-
-    if not LastPosition then
-
-        LastPosition =
-            position
-
-        LastMoveTime =
-            os.clock()
-
-        return false
-    end
-
-    local moved =
-        (
-            position -
-            LastPosition
-        ).Magnitude
-
-    if moved > 0.6 then
-
-        LastPosition =
-            position
-
-        LastMoveTime =
-            os.clock()
-
-        return false
-
-    end
-
-    if os.clock() -
-        LastMoveTime >
-        CONFIG.StuckTime then
-
-        return true
-    end
-
-    return false
-end
-
---==============================================================
--- STUCK RECOVERY
---==============================================================
-
-local function RecoverFromStuck()
-
-    SetState(
-        "RECOVERING",
-        "STUCK RECOVERY"
-    )
-
-    if not Humanoid or not Root then
-        return
-    end
-
-    -- Level 1: đổi hướng
-    local right =
-        Root.CFrame.RightVector
-
-    Humanoid:Move(
-        right,
-        false
-    )
-
-    task.wait(0.18)
-
-    if not CheckStuck() then
-        return
-    end
-
-    -- Level 2: lùi
-    Humanoid:Move(
-        -Root.CFrame.LookVector,
-        false
-    )
-
-    task.wait(0.25)
-
-    if not CheckStuck() then
-        return
-    end
-
-    -- Level 3: jump nếu an toàn
-    local scan =
-        ScanEnvironment()
-
-    if not scan.Gap
-    and not scan.KillPart then
-
-        SmartJump(
-            Root.Position +
-            Root.CFrame.LookVector * 5
-        )
-
-        task.wait(0.25)
-
-    end
-
-    -- Level 4: recalculate
-    if Target then
-
-        SetState(
-            "RECALCULATING",
-            "ROUTE RECALCULATE"
-        )
-
-        Waypoints =
-            BuildPath(
-                Target
-            )
-
-        CurrentWaypoint = 1
-
-        LastRecalculate =
-            os.clock()
-
-    end
-
-end
-
---==============================================================
--- FALL RECOVERY
---==============================================================
-
-local function FallRecovery()
-
-    if not Root then
-        return
-    end
-
-    local velocity =
-        Root.AssemblyLinearVelocity
-
-    if velocity.Y < -55 then
-
-        SetState(
-            "RECOVERING",
-            "FALL RECOVERY"
-        )
-
-        local below =
-            Cast(
-                Root.Position,
-                Vector3.new(
-                    0,
-                    -40,
-                    0
-                )
-            )
-
-        if below
-        and IsSafePosition(
-            below.Position
-        ) then
-
-            DrawRay(
-                4,
-                Root.Position,
-                below.Position,
-                Color3.fromRGB(
-                    57,
-                    255,
-                    20
-                ),
-                0.15
-            )
-
-        end
-
-    end
-end
-
---==============================================================
--- ROUTE RECALCULATE
---==============================================================
-
-local function Recalculate()
-
-    if not Target or not Root then
-        return false
-    end
-
-    SetState(
-        "RECALCULATING",
-        "NEW ROUTE"
-    )
-
-    Waypoints =
-        BuildPath(
-            Target
-        )
-
-    CurrentWaypoint = 1
-
-    LastRecalculate =
-        os.clock()
-
-    DrawRoute()
-
-    return #Waypoints > 0
-end
-
---==============================================================
+--========================================================
 -- SET TARGET
---==============================================================
+--========================================================
 
-local function SetTarget(position, normal, hitPart)
+local function SetTarget(
+    position,
+    normal
+)
 
-    if not CONFIG.Enabled then
+    if not Enabled then
         return
     end
 
-    RunningToken += 1
-
-    Target =
+    TargetPosition =
         position
 
     TargetNormal =
         normal
-
-    TargetPart =
-        hitPart
 
     CreateMarker(
         position,
         normal
     )
 
-    Waypoints = {}
-    CurrentWaypoint = 1
+    ClearPath()
 
-    SetState(
-        "TARGET_SELECTED",
-        "TARGET SELECTED"
-    )
+    PathVersion += 1
 
-    task.spawn(
+    local version =
+        PathVersion
+
+    task.delay(
+        CONFIG.RecalculateDelay,
         function()
 
-            local token =
-                RunningToken
+            if not Enabled then
+                return
+            end
 
-            task.wait(
-                CONFIG.ReactionDelay
-            )
-
-            if token ~= RunningToken
-            or not CONFIG.Enabled then
+            if version ~=
+                PathVersion then
 
                 return
             end
 
-            Recalculate()
+            CurrentPath =
+                CalculatePath(
+                    TargetPosition
+                )
+
+            DrawPath()
 
         end
     )
-end
-
---==============================================================
--- CLEAR TARGET
---==============================================================
-
-local function ClearTarget()
-
-    RunningToken += 1
-
-    Target = nil
-    TargetNormal = nil
-    TargetPart = nil
-
-    Waypoints = {}
-    CurrentWaypoint = 1
-
-    RemoveMarker()
-    HideRays()
-
-    SetState(
-        "IDLE",
-        "IDLE"
-    )
 
 end
 
---==============================================================
--- CAMERA CLICK / TOUCH
---==============================================================
+--========================================================
+-- SCREEN RAY
+--========================================================
 
-local function IsOverUI(position)
+local function GetMapPosition(screenPosition)
+
+    if not Camera then
+        return nil
+    end
+
+    UpdateRayFilter()
+
+    local cameraRay =
+        Camera:ViewportPointToRay(
+            screenPosition.X,
+            screenPosition.Y
+        )
+
+    local result =
+        workspace:Raycast(
+            cameraRay.Origin,
+            cameraRay.Direction *
+                CONFIG.MaxDistance,
+            RayParams
+        )
+
+    if not result then
+        return nil
+    end
+
+    return
+        result.Position,
+        result.Normal,
+        result.Instance
+
+end
+
+--========================================================
+-- UI DETECTION
+--========================================================
+
+local function IsInsideUI(position)
 
     local objects =
-        Player.PlayerGui:GetGuiObjectsAtPosition(
+        PlayerGui:GetGuiObjectsAtPosition(
             position.X,
             position.Y
         )
 
-    for _, obj in ipairs(objects) do
+    for _,object in ipairs(objects) do
 
-        if obj:IsDescendantOf(Main) then
+        if object:IsDescendantOf(Main) then
             return true
         end
 
     end
 
     return false
+
 end
 
-local function GetTargetFromScreen(position)
-
-    local ray =
-        Camera:ViewportPointToRay(
-            position.X,
-            position.Y
-        )
-
-    UpdateRayFilter()
-
-    local hit =
-        workspace:Raycast(
-            ray.Origin,
-            ray.Direction *
-                2000,
-            RayParams
-        )
-
-    if not hit then
-        return nil
-    end
-
-    local point =
-        hit.Position
-
-    local normal =
-        hit.Normal
-
-    local part =
-        hit.Instance
-
-    if not IsSafePosition(
-        point
-    ) then
-
-        return nil
-
-    end
-
-    return point, normal, part
-end
-
---==============================================================
--- INPUT
---==============================================================
+--========================================================
+-- CLICK TARGET INPUT
+--========================================================
 
 UserInputService.InputBegan:Connect(
-    function(input, processed)
+    function(input,processed)
 
         if processed then
             return
         end
 
-        if not CONFIG.Enabled then
+        if not Enabled then
             return
         end
 
-        if input.UserInputType ==
+        if not ClickMode then
+            return
+        end
+
+        local inputType =
+            input.UserInputType
+
+        if inputType ~=
             Enum.UserInputType.MouseButton1
-        or input.UserInputType ==
+        and inputType ~=
             Enum.UserInputType.Touch then
 
-            local pos =
-                input.Position
-
-            if IsOverUI(pos) then
-                return
-            end
-
-            local point,
-                normal,
-                part =
-                GetTargetFromScreen(
-                    pos
-                )
-
-            if point then
-
-                SetTarget(
-                    point,
-                    normal,
-                    part
-                )
-
-            end
-
+            return
         end
+
+        local position =
+            input.Position
+
+        if IsInsideUI(position) then
+            return
+        end
+
+        local target,
+            normal =
+            GetMapPosition(
+                position
+            )
+
+        if not target then
+            return
+        end
+
+        SetTarget(
+            target,
+            normal
+        )
+
+        -- Click 1 lần -> chọn target
+        ClickMode = false
+
+        ClickButton.Text =
+            "CLICK : SELECT"
+
+        ClickButton.TextColor3 =
+            Color3.fromRGB(
+                100,
+                180,
+                255
+            )
 
     end
 )
 
---==============================================================
+--========================================================
 -- TOGGLE
---==============================================================
+--========================================================
 
 Toggle.MouseButton1Click:Connect(
     function()
 
-        CONFIG.Enabled =
-            not CONFIG.Enabled
+        Enabled =
+            not Enabled
 
-        if CONFIG.Enabled then
+        if Enabled then
 
             Toggle.Text =
-                "AI : ON"
+                "ON / OFF : ON"
 
             Toggle.TextColor3 =
                 Color3.fromRGB(
@@ -2056,40 +779,19 @@ Toggle.MouseButton1Click:Connect(
                     130
                 )
 
-            SetState(
-                "SCANNING",
-                "WAITING TARGET"
-            )
+            Stroke.Color =
+                Color3.fromRGB(
+                    30,
+                    190,
+                    255
+                )
 
         else
 
-            CONFIG.Enabled = false
-
-            RunningToken += 1
-
-            Waypoints = {}
-            CurrentWaypoint = 1
-
-            RemoveMarker()
-            HideRays()
-
-            if Humanoid then
-
-                Humanoid:Move(
-                    Vector3.zero,
-                    false
-                )
-
-                Humanoid:MoveTo(
-                    Root
-                    and Root.Position
-                    or Vector3.zero
-                )
-
-            end
+            ClickMode = false
 
             Toggle.Text =
-                "AI : OFF"
+                "ON / OFF : OFF"
 
             Toggle.TextColor3 =
                 Color3.fromRGB(
@@ -2098,23 +800,71 @@ Toggle.MouseButton1Click:Connect(
                     90
                 )
 
-            SetState(
-                "STOPPED",
-                "STOPPED"
-            )
+            ClickButton.Text =
+                "CLICK : SELECT"
+
+            ClickButton.TextColor3 =
+                Color3.fromRGB(
+                    100,
+                    180,
+                    255
+                )
+
+            ClearPath()
+
+            RemoveMarker()
 
         end
 
     end
 )
 
---==============================================================
--- MOBILE DRAG
---==============================================================
+--========================================================
+-- CLICK MODE
+--========================================================
 
-local Dragging = false
-local DragStart
-local StartPos
+ClickButton.MouseButton1Click:Connect(
+    function()
+
+        if not Enabled then
+            return
+        end
+
+        ClickMode =
+            not ClickMode
+
+        if ClickMode then
+
+            ClickButton.Text =
+                "CLICK : TAP MAP"
+
+            ClickButton.TextColor3 =
+                Color3.fromRGB(
+                    80,
+                    255,
+                    130
+                )
+
+        else
+
+            ClickButton.Text =
+                "CLICK : SELECT"
+
+            ClickButton.TextColor3 =
+                Color3.fromRGB(
+                    100,
+                    180,
+                    255
+                )
+
+        end
+
+    end
+)
+
+--========================================================
+-- MOBILE DRAG
+--========================================================
 
 Main.InputBegan:Connect(
     function(input)
@@ -2129,7 +879,7 @@ Main.InputBegan:Connect(
             DragStart =
                 input.Position
 
-            StartPos =
+            StartPosition =
                 Main.Position
 
         end
@@ -2155,12 +905,12 @@ UserInputService.InputChanged:Connect(
 
             Main.Position =
                 UDim2.new(
-                    StartPos.X.Scale,
-                    StartPos.X.Offset +
+                    StartPosition.X.Scale,
+                    StartPosition.X.Offset +
                         delta.X,
 
-                    StartPos.Y.Scale,
-                    StartPos.Y.Offset +
+                    StartPosition.Y.Scale,
+                    StartPosition.Y.Offset +
                         delta.Y
                 )
 
@@ -2184,403 +934,126 @@ UserInputService.InputEnded:Connect(
     end
 )
 
---==============================================================
--- RESPAWN
---==============================================================
+--========================================================
+-- TARGET FOLLOW UPDATE
+--========================================================
+-- Nhân vật có thể di chuyển trong lúc đang xem đường.
+-- Không điều khiển Humanoid.
 
-Player.CharacterAdded:Connect(
-    function(char)
+local lastRootPosition = nil
+local lastRebuild = 0
 
-        Character = char
-
-        task.wait(0.7)
-
-        UpdateCharacter()
-
-        if CONFIG.Enabled
-        and Target then
-
-            SetState(
-                "RECALCULATING",
-                "RESPAWN RECOVERY"
-            )
-
-            task.wait(0.25)
-
-            if CONFIG.Enabled
-            and Target then
-
-                Recalculate()
-
-            end
-
-        end
-
-    end
-)
-
---==============================================================
--- AI MAIN LOOP
---==============================================================
-
-task.spawn(
+RunService.Heartbeat:Connect(
     function()
 
-        while true do
+        if not Enabled then
+            return
+        end
 
-            task.wait(0.08)
+        if not TargetPosition then
+            return
+        end
 
-            if not CONFIG.Enabled then
-                continue
-            end
-
+        if not Root then
             UpdateCharacter()
+            return
+        end
 
-            if not Character
-            or not Humanoid
-            or not Root then
+        -- Nếu người chơi tự di chuyển,
+        -- cập nhật đường từ vị trí hiện tại.
+        local current =
+            Root.Position
 
-                SetState(
-                    "RECOVERING",
-                    "CHARACTER WAIT"
-                )
+        if lastRootPosition then
 
-                continue
-            end
-
-            if Humanoid.Health <= 0 then
-                continue
-            end
-
-            --==================================================
-            -- TARGET
-            --==================================================
-
-            if not Target then
-
-                SetState(
-                    "SCANNING",
-                    "WAITING TARGET"
-                )
-
-                continue
-
-            end
-
-            --==================================================
-            -- ARRIVAL
-            --==================================================
-
-            if CheckArrival() then
-
-                task.wait(0.35)
-
-                -- Sau khi tới target,
-                -- không tự chọn target mới.
-                -- Chờ click target tiếp theo.
-
-                continue
-            end
-
-            --==================================================
-            -- FALL
-            --==================================================
-
-            FallRecovery()
-
-            --==================================================
-            -- STUCK
-            --==================================================
-
-            if CheckStuck() then
-
-                RecoverFromStuck()
-
-                continue
-            end
-
-            --==================================================
-            -- RECALCULATE
-            --==================================================
-
-            if #Waypoints == 0 then
-
-                Recalculate()
-
-                continue
-
-            end
-
-            if os.clock() -
-                LastRecalculate >
-                CONFIG.RecalculateTime then
-
-                local scan =
-                    ScanEnvironment()
-
-                if scan.KillPart
-                or scan.Gap then
-
-                    Recalculate()
-
-                    continue
-
-                end
-
-            end
-
-            --==================================================
-            -- WAYPOINT
-            --==================================================
-
-            local waypoint =
-                Waypoints[
-                    CurrentWaypoint
-                ]
-
-            if not waypoint then
-
-                Recalculate()
-
-                continue
-
-            end
-
-            SetState(
-                "WALKING",
-                "WALKING"
-            )
-
-            DrawRoute()
-            DrawTargetVisual()
-
-            local distance =
+            local moved =
                 (
-                    Root.Position -
-                    waypoint.Position
+                    current -
+                    lastRootPosition
                 ).Magnitude
 
-            if distance <=
-                CONFIG.WaypointReach then
+            if moved > 4
+            and os.clock() -
+                lastRebuild > 0.25 then
 
-                CurrentWaypoint += 1
+                lastRebuild =
+                    os.clock()
 
-                continue
-            end
+                PathVersion += 1
 
-            --==================================================
-            -- MOVING PLATFORM
-            --==================================================
+                local version =
+                    PathVersion
 
-            if TargetPart
-            and IsMovingPlatform(
-                TargetPart
-            ) then
+                CurrentPath = {}
 
-                Target =
-                    TargetPart.Position +
-                    (
-                        Target -
-                        TargetPart.Position
-                    )
+                task.spawn(function()
 
-            end
+                    local newPath =
+                        CalculatePath(
+                            TargetPosition
+                        )
 
-            --==================================================
-            -- SMART MOVEMENT
-            --==================================================
-
-            WalkWaypoint(
-                waypoint
-            )
-
-        end
-
-    end
-)
-
---==============================================================
--- SCAN LOOP
---==============================================================
-
-task.spawn(
-    function()
-
-        while true do
-
-            task.wait(
-                CONFIG.ScanInterval
-            )
-
-            if not CONFIG.Enabled
-            or not Root then
-
-                continue
-            end
-
-            LastScan =
-                os.clock()
-
-            local scan =
-                ScanEnvironment()
-
-            --==================================================
-            -- DEBUG RAYS
-            --==================================================
-
-            if CONFIG.Debug then
-
-                local origin =
-                    Root.Position +
-                    Vector3.new(0, 2, 0)
-
-                if scan.Forward then
-
-                    DrawRay(
-                        30,
-                        origin,
-                        scan.Forward.Position,
-                        Color3.fromRGB(
-                            57,
-                            255,
-                            20
-                        ),
-                        0.25
-                    )
-
-                end
-
-                if scan.Left then
-
-                    DrawRay(
-                        31,
-                        origin,
-                        scan.Left.Position,
-                        Color3.fromRGB(
-                            57,
-                            255,
-                            20
-                        ),
-                        0.25
-                    )
-
-                end
-
-                if scan.Right then
-
-                    DrawRay(
-                        32,
-                        origin,
-                        scan.Right.Position,
-                        Color3.fromRGB(
-                            57,
-                            255,
-                            20
-                        ),
-                        0.25
-                    )
-
-                end
-
-                if scan.Down then
-
-                    DrawRay(
-                        33,
-                        origin,
-                        scan.Down.Position,
-                        Color3.fromRGB(
-                            57,
-                            255,
-                            20
-                        ),
-                        0.25
-                    )
-
-                end
-
-                if scan.Up then
-
-                    DrawRay(
-                        34,
-                        origin,
-                        scan.Up.Position,
-                        Color3.fromRGB(
-                            255,
-                            210,
-                            50
-                        ),
-                        0.25
-                    )
-
-                end
-
-            else
-
-                for i = 30, 34 do
-
-                    local p =
-                        RayPool[i]
-
-                    if p then
-                        p.Transparency = 1
+                    if not Enabled then
+                        return
                     end
 
-                end
+                    if version ~=
+                        PathVersion then
+
+                        return
+                    end
+
+                    CurrentPath =
+                        newPath
+
+                    DrawPath()
+
+                end)
 
             end
 
         end
 
-    end
-)
+        lastRootPosition =
+            current
 
---==============================================================
--- LED ANIMATION
---==============================================================
+        -- Target marker luôn giữ ở vị trí click
+        -- và không ảnh hưởng collision.
 
-local ledTime = 0
+        if TargetMarker then
 
-RunService.RenderStepped:Connect(
-    function(dt)
-
-        ledTime += dt * 2
-
-        local pulse =
-            (
-                math.sin(ledTime) + 1
-            ) / 2
-
-        Stroke.Transparency =
-            0.03 +
-            pulse * 0.22
-
-        if Marker then
-
-            local gui =
-                Marker:FindFirstChild(
+            local billboard =
+                TargetMarker:FindFirstChild(
                     "TargetImage"
                 )
 
-            if gui then
-
-                gui.StudsOffset =
-                    Vector3.new(
-                        0,
-                        0.1 +
-                        pulse * 0.25,
-                        0
-                    )
+            if billboard then
 
                 local image =
-                    gui:FindFirstChild(
+                    billboard:FindFirstChild(
                         "ImageLabel"
                     )
 
                 if image then
 
+                    local pulse =
+                        (
+                            math.sin(
+                                os.clock() * 3
+                            ) + 1
+                        ) / 2
+
                     image.ImageTransparency =
                         0.05 +
                         pulse * 0.25
+
+                    billboard.StudsOffset =
+                        Vector3.new(
+                            0,
+                            0.1 +
+                            pulse * 0.2,
+                            0
+                        )
 
                 end
 
@@ -2591,46 +1064,42 @@ RunService.RenderStepped:Connect(
     end
 )
 
---==============================================================
--- CLEANUP
---==============================================================
+--========================================================
+-- RESPAWN PATH REFRESH
+--========================================================
 
-local function FullCleanup()
+Player.CharacterAdded:Connect(
+    function()
 
-    RunningToken += 1
+        task.wait(1)
 
-    CONFIG.Enabled = false
+        UpdateCharacter()
 
-    Target = nil
-    TargetNormal = nil
-    TargetPart = nil
+        if Enabled
+        and TargetPosition then
 
-    Waypoints = {}
-    RouteMemory = {}
-    FailedRoutes = {}
+            PathVersion += 1
 
-    RemoveMarker()
-    HideRays()
+            CurrentPath =
+                CalculatePath(
+                    TargetPosition
+                )
 
-    for _, connection in pairs(
-        Connections
-    ) do
+            DrawPath()
 
-        pcall(function()
-            connection:Disconnect()
-        end)
+        end
 
     end
-
-    Connections = {}
-
-end
-
---==============================================================
--- FINAL
---==============================================================
-
-SetState(
-    "IDLE",
-    "READY"
 )
+
+--========================================================
+-- INITIAL
+--========================================================
+
+HideRays()
+
+Toggle.Text =
+    "ON / OFF : OFF"
+
+ClickButton.Text =
+    "CLICK : SELECT"
