@@ -1,375 +1,421 @@
---[========================================================================]--
---  ROBLOX PRO KILLER AI SYSTEM (FULL SCRIPT)
---  Target: LocalPlayer only (Asset ID: 11161546148)
---  Features: Advanced State Machine, Smart Pathfinding, Prediction, Parkour,
---            Visual Debug, Custom UI Panel, Health Tracking (10 hits to kill),
---            Respawn handling, and ON/OFF toggle support.
---[========================================================================]--
+--==============================================================
+-- MINI SLIDE EVADE 6D • COMPACT 50%
+-- SLIDE + AUTO JUMP
+-- MOBILE • DRAG • GLASS • GLOW
+--==============================================================
 
 local Players = game:GetService("Players")
-local PathfindingService = game:GetService("PathfindingService")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
-local LocalPlayer = Players.LocalPlayer
+local LP = Players.LocalPlayer
 
--- CONFIGURATIONS
-local CONFIG = {
-	NPC_ASSET_ID = 11161546148,
-	MAX_HEALTH = 10, -- 10 hits to kill NPC
-	WALK_SPEED = 18,
-	CHASE_SPEED = 24,
-	ATTACK_RANGE = 4.5,
-	DETECTION_RANGE = 75,
-	LOST_TARGET_RANGE = 120,
-	ATTACK_COOLDOWN = 1.5,
-	WAYPOINT_RECALC_INTERVAL = 1.2,
-	STUCK_TIMEOUT = 2.0,
-}
+--==============================================================
+-- CLEAR OLD UI
+--==============================================================
 
--- STATES
-local State = {
-	IDLE = "IDLE",
-	SEARCHING = "SEARCHING",
-	CHASING = "CHASING",
-	ATTACKING = "ATTACKING",
-	REPATHING = "REPATHING",
-	RECOVERING = "RECOVERING",
-	LOST_TARGET = "LOST_TARGET",
-	WAITING = "WAITING"
-}
+if CoreGui:FindFirstChild("MiniSlide6D") then
+    CoreGui.MiniSlide6D:Destroy()
+end
 
--- AI RUNTIME VARIABLES
-local currentAIState = State.IDLE
-local isAIActive = false
-local isDebugVisualsOn = true
-local currentHP = CONFIG.MAX_HEALTH
+--==============================================================
+-- GUI
+--==============================================================
 
-local npcModel = nil
-local npcHumanoid = nil
-local npcRootPart = nil
+local gui = Instance.new("ScreenGui")
+gui.Name = "MiniSlide6D"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = CoreGui
 
-local lastWaypointPosition = Vector3.new()
-local currentWaypointIndex = 1
-local waypoints = {}
-local lastRepathTick = 0
-local lastStuckCheckTick = time()
-local lastPositionForStuck = Vector3.new()
-local lastAttackTick = 0
+--==============================================================
+-- MAIN
+--==============================================================
 
-local targetCharacter = nil
-local targetHumanoid = nil
-local targetRootPart = nil
-
--- VISUAL CONTAINERS
-local debugFolder = Instance.new("Folder")
-debugFolder.Name = "KillerAIDebug"
-debugFolder.Parent = Workspace
-
--- UI PANELS CREATION (Mobile Friendly & Draggable)
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "KillerAI_UI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-local mainPanel = Instance.new("Frame")
-mainPanel.Size = UDim2.new(0, 220, 0, 310)
-mainPanel.Position = UDim2.new(0.02, 0, 0.2, 0)
-mainPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-mainPanel.BorderSizePixel = 0
-mainPanel.Active = true
-mainPanel.Draggable = true
-mainPanel.Parent = screenGui
+local frame = Instance.new("Frame")
+frame.Name = "Main"
+frame.Size = UDim2.new(0,100,0,92)
+frame.Position = UDim2.new(0,20,0.4,0)
+frame.BackgroundColor3 = Color3.fromRGB(12,15,25)
+frame.BackgroundTransparency = 0.15
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.ZIndex = 2
+frame.Parent = gui
 
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = mainPanel
+corner.CornerRadius = UDim.new(0,9)
+corner.Parent = frame
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 30)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "KILLER AI PANEL"
-titleLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
-titleLabel.TextSize = 14
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.Parent = mainPanel
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 1
+stroke.Transparency = 0.1
+stroke.Color = Color3.fromRGB(80,150,255)
+stroke.Parent = frame
 
-local function createStatusRow(name, posY)
-	local label = Instance.new("TextLabel")
-	label.Name = name
-	label.Size = UDim2.new(1, -20, 0, 20)
-	label.Position = UDim2.new(0, 10, 0, posY)
-	label.BackgroundTransparency = 1
-	label.Text = name .. ": [N/A]"
-	label.TextColor3 = Color3.fromRGB(200, 200, 200)
-	label.TextSize = 12
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Font = Enum.Font.SourceSans
-	label.Parent = mainPanel
-	return label
+--==============================================================
+-- GLOW
+--==============================================================
+
+local glow = Instance.new("ImageLabel")
+glow.Name = "Glow"
+glow.AnchorPoint = Vector2.new(0.5,0.5)
+glow.Position = UDim2.new(0.5,0,0.5,0)
+glow.Size = UDim2.new(1,18,1,18)
+glow.BackgroundTransparency = 1
+glow.Image = "rbxassetid://5028857084"
+glow.ImageColor3 = Color3.fromRGB(40,120,255)
+glow.ImageTransparency = 0.72
+glow.ZIndex = 1
+glow.Parent = frame
+
+--==============================================================
+-- TITLE
+--==============================================================
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,-10,0,15)
+title.Position = UDim2.new(0,5,0,2)
+title.BackgroundTransparency = 1
+title.Text = "⚡ SLIDE 6D"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 9
+title.TextColor3 = Color3.fromRGB(180,220,255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 5
+title.Parent = frame
+
+--==============================================================
+-- SLIDE BUTTON
+--==============================================================
+
+local toggle = Instance.new("TextButton")
+toggle.Name = "SlideToggle"
+toggle.Size = UDim2.new(0.58,-7,0,22)
+toggle.Position = UDim2.new(0,5,0,19)
+toggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+toggle.BorderSizePixel = 0
+toggle.Text = "SLIDE OFF"
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 8
+toggle.TextColor3 = Color3.fromRGB(170,180,200)
+toggle.AutoButtonColor = false
+toggle.ZIndex = 5
+toggle.Parent = frame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0,7)
+toggleCorner.Parent = toggle
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Thickness = 1
+toggleStroke.Transparency = 0.2
+toggleStroke.Color = Color3.fromRGB(70,90,120)
+toggleStroke.Parent = toggle
+
+--==============================================================
+-- SPEED
+--==============================================================
+
+local box = Instance.new("TextBox")
+box.Name = "SpeedBox"
+box.Size = UDim2.new(0.42,-8,0,22)
+box.Position = UDim2.new(0.58,2,0,19)
+box.BackgroundColor3 = Color3.fromRGB(20,25,38)
+box.BorderSizePixel = 0
+box.Text = "-8"
+box.PlaceholderText = "SPD"
+box.Font = Enum.Font.GothamBold
+box.TextSize = 9
+box.TextColor3 = Color3.fromRGB(220,235,255)
+box.PlaceholderColor3 = Color3.fromRGB(90,105,130)
+box.ClearTextOnFocus = false
+box.ZIndex = 5
+box.Parent = frame
+
+local boxCorner = Instance.new("UICorner")
+boxCorner.CornerRadius = UDim.new(0,7)
+boxCorner.Parent = box
+
+local boxStroke = Instance.new("UIStroke")
+boxStroke.Thickness = 1
+boxStroke.Transparency = 0.2
+boxStroke.Color = Color3.fromRGB(60,80,110)
+boxStroke.Parent = box
+
+--==============================================================
+-- AUTO JUMP BUTTON
+--==============================================================
+
+local jumpToggle = Instance.new("TextButton")
+jumpToggle.Name = "AutoJumpToggle"
+jumpToggle.Size = UDim2.new(1,-10,0,22)
+jumpToggle.Position = UDim2.new(0,5,0,45)
+jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+jumpToggle.BorderSizePixel = 0
+jumpToggle.Text = "AUTO JUMP OFF"
+jumpToggle.Font = Enum.Font.GothamBold
+jumpToggle.TextSize = 8
+jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
+jumpToggle.AutoButtonColor = false
+jumpToggle.ZIndex = 5
+jumpToggle.Parent = frame
+
+local jumpCorner = Instance.new("UICorner")
+jumpCorner.CornerRadius = UDim.new(0,7)
+jumpCorner.Parent = jumpToggle
+
+local jumpStroke = Instance.new("UIStroke")
+jumpStroke.Thickness = 1
+jumpStroke.Transparency = 0.2
+jumpStroke.Color = Color3.fromRGB(70,90,120)
+jumpStroke.Parent = jumpToggle
+
+--==============================================================
+-- STATUS
+--==============================================================
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1,-10,0,14)
+status.Position = UDim2.new(0,5,0,72)
+status.BackgroundTransparency = 1
+status.Text = "● READY"
+status.Font = Enum.Font.GothamBold
+status.TextSize = 7
+status.TextColor3 = Color3.fromRGB(100,120,145)
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.ZIndex = 5
+status.Parent = frame
+
+--==============================================================
+-- VARIABLES
+--==============================================================
+
+local slideEnabled = false
+local autoJumpEnabled = false
+local speed = -8
+local jumpCooldown = 0.18
+local lastJump = 0
+
+--==============================================================
+-- SPEED INPUT
+--==============================================================
+
+box.FocusLost:Connect(function()
+    local n = tonumber(box.Text)
+
+    if n then
+        speed = n
+        box.Text = tostring(n)
+    else
+        box.Text = tostring(speed)
+    end
+end)
+
+--==============================================================
+-- SLIDE TOGGLE
+--==============================================================
+
+toggle.MouseButton1Click:Connect(function()
+
+    slideEnabled = not slideEnabled
+
+    if slideEnabled then
+        toggle.Text = "SLIDE ON"
+        toggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
+        toggle.TextColor3 = Color3.fromRGB(235,245,255)
+        toggleStroke.Color = Color3.fromRGB(80,180,255)
+
+        stroke.Color = Color3.fromRGB(70,170,255)
+        glow.ImageTransparency = 0.55
+
+        if autoJumpEnabled then
+            status.Text = "● SLIDE + JUMP"
+        else
+            status.Text = "● SLIDE ACTIVE"
+        end
+
+        status.TextColor3 = Color3.fromRGB(80,190,255)
+
+    else
+        toggle.Text = "SLIDE OFF"
+        toggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+        toggle.TextColor3 = Color3.fromRGB(170,180,200)
+        toggleStroke.Color = Color3.fromRGB(70,90,120)
+
+        if autoJumpEnabled then
+            status.Text = "● JUMP ACTIVE"
+            status.TextColor3 = Color3.fromRGB(100,190,255)
+        else
+            status.Text = "● READY"
+            status.TextColor3 = Color3.fromRGB(100,120,145)
+            stroke.Color = Color3.fromRGB(80,150,255)
+            glow.ImageTransparency = 0.72
+        end
+    end
+end)
+
+--==============================================================
+-- AUTO JUMP TOGGLE
+--==============================================================
+
+jumpToggle.MouseButton1Click:Connect(function()
+
+    autoJumpEnabled = not autoJumpEnabled
+
+    if autoJumpEnabled then
+
+        jumpToggle.Text = "AUTO JUMP ON"
+        jumpToggle.BackgroundColor3 = Color3.fromRGB(30,100,70)
+        jumpToggle.TextColor3 = Color3.fromRGB(220,255,240)
+        jumpStroke.Color = Color3.fromRGB(70,220,150)
+
+        if slideEnabled then
+            status.Text = "● SLIDE + JUMP"
+        else
+            status.Text = "● JUMP ACTIVE"
+        end
+
+        status.TextColor3 = Color3.fromRGB(80,220,160)
+
+    else
+
+        jumpToggle.Text = "AUTO JUMP OFF"
+        jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+        jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
+        jumpStroke.Color = Color3.fromRGB(70,90,120)
+
+        if slideEnabled then
+            status.Text = "● SLIDE ACTIVE"
+            status.TextColor3 = Color3.fromRGB(80,190,255)
+        else
+            status.Text = "● READY"
+            status.TextColor3 = Color3.fromRGB(100,120,145)
+        end
+    end
+end)
+
+--==============================================================
+-- MAIN LOOP
+--==============================================================
+
+RunService.RenderStepped:Connect(function()
+
+    local char = LP.Character
+    if not char then
+        return
+    end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    if not hrp or not hum then
+        return
+    end
+
+    --==========================================================
+    -- SLIDE
+    --==========================================================
+
+    if slideEnabled and hum.MoveDirection.Magnitude > 0 then
+
+        hrp.Velocity = Vector3.new(
+            hum.MoveDirection.X * speed * 10,
+            hrp.Velocity.Y,
+            hum.MoveDirection.Z * speed * 10
+        )
+
+    end
+
+    --==========================================================
+    -- AUTO JUMP
+    --==========================================================
+
+    if autoJumpEnabled
+        and hum.MoveDirection.Magnitude > 0
+        and tick() - lastJump >= jumpCooldown then
+
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        lastJump = tick()
+
+    end
+
+end)
+
+--==============================================================
+-- RESPAWN SUPPORT
+--==============================================================
+
+LP.CharacterAdded:Connect(function()
+
+    task.wait(0.25)
+
+    if slideEnabled and autoJumpEnabled then
+        status.Text = "● SLIDE + JUMP"
+    elseif slideEnabled then
+        status.Text = "● SLIDE ACTIVE"
+    elseif autoJumpEnabled then
+        status.Text = "● JUMP ACTIVE"
+    else
+        status.Text = "● READY"
+    end
+
+end)
+-- =============================================================================
+-- ZYNTRIX - AUTO LOAD & LOCK FIXED POSITIONS (NO UI, NO COPY)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Tọa độ cố định bạn đã cung cấp
+local carryFixedPos = UDim2.new(0.699999988, 169, 0.400000006, 7)
+local healFixedPos = UDim2.new(0.300000012, 359, 0.400000006, 6)
+local uncarryFixedPos = UDim2.new(0.5, 224, 0.670000017, -109)
+
+-- Hàm tìm kiếm đường dẫn UI an toàn
+local function getIcons()
+	local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+	if not pGui then return nil, nil, nil end
+	local gameFolder = pGui:FindFirstChild("Game")
+	if not gameFolder then return nil, nil, nil end
+	local hud = gameFolder:FindFirstChild("HUD")
+	if not hud then return nil, nil, nil end
+	local mobile = hud:FindFirstChild("Mobile")
+	if not mobile then return nil, nil, nil end
+	local center = mobile:FindFirstChild("Center")
+	if not center then return nil, nil, nil end
+	local interact1 = center:FindFirstChild("Interact")
+	if not interact1 then return nil, nil, nil end
+	local interact2 = interact1:FindFirstChild("Interact")
+	if not interact2 then return nil, nil, nil end
+	
+	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon"), interact2:FindFirstChild("UncarryIcon")
 end
 
-local stateDisp = createStatusRow("STATE", 35)
-local distDisp = createStatusRow("DISTANCE", 55)
-local speedDisp = createStatusRow("SPEED", 75)
-local hpDisp = createStatusRow("NPCHP", 95)
-local stuckDisp = createStatusRow("STUCK", 115)
-
-local function createToggleButton(text, posY, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.9, 0, 0, 28)
-	btn.Position = UDim2.new(0.05, 0, 0, posY)
-	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Text = text .. ": OFF"
-	btn.TextSize = 12
-	btn.Font = Enum.Font.SourceSansBold
-	btn.Parent = mainPanel
-	
-	local btnCorner = Instance.new("UICorner")
-	btnCorner.CornerRadius = UDim.new(0, 4)
-	btnCorner.Parent = btn
-	
-	local state = false
-	btn.MouseButton1Click:Connect(function()
-		state = not state
-		btn.BackgroundColor3 = state and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 40, 40)
-		btn.Text = text .. (state and ": ON" or ": OFF")
-		callback(state)
-	end)
-	return btn
-end
-
-createToggleButton("AI TOGGLE", 145, function(state)
-	isAIActive = state
-	if not isAIActive and npcHumanoid then
-		npcHumanoid:MoveTo(npcRootPart.Position)
-		currentAIState = State.IDLE
-	end
-end)
-
-createToggleButton("SPAWN NPC", 180, function(state)
-	if state then
-		spawnNPC()
-	else
-		despawnNPC()
-	end
-end)
-
-createToggleButton("DEBUG VISUAL", 215, function(state)
-	isDebugVisualsOn = state
-	debugFolder.Parent = state and Workspace or nil
-end)
-
--- SPAWN & DESPAWN LOGIC FOR NPC
-function spawnNPC()
-	despawnNPC()
-	currentHP = CONFIG.MAX_HEALTH
-	
+-- Vòng lặp tự động khóa và ép chặt tọa độ ngay khi bật script, chống mất khi chết/hồi sinh
+RunService.RenderStepped:Connect(function()
 	pcall(function()
-		local modelClone = game:GetService("InsertService"):LoadAsset(CONFIG.NPC_ASSET_ID)
-		if modelClone then
-			npcModel = modelClone:GetChildren()[1] or modelClone
-			npcModel.Name = "KillerNPC_" .. math.random(1000,9999)
-			npcModel.Parent = Workspace
-			
-			if not npcModel.PrimaryPart then
-				npcModel.PrimaryPart = npcModel:FindFirstChild("HumanoidRootPart") or npcModel:FindFirstChild("Torso")
-			end
-			
-			local spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-				and (LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(10, 0, 10)) or Vector3.new(0, 5, 0)
-			
-			if npcModel.PrimaryPart then
-				npcModel:SetPrimaryPartCFrame(CFrame.new(spawnPos))
-			end
-			
-			npcHumanoid = npcModel:FindFirstChildOfClass("Humanoid")
-			npcRootPart = npcModel:FindFirstChild("HumanoidRootPart") or npcModel.PrimaryPart
-			
-			if npcHumanoid and npcRootPart then
-				npcHumanoid.WalkSpeed = CONFIG.WALK_SPEED
-				
-				-- Track NPC Health (10 hits to kill)
-				npcHumanoid.HealthChanged:Connect(function(health)
-					if health <= 0 then
-						despawnNPC()
-					end
-				end)
-			end
-		end
-	end)
-end
-
-function despawnNPC()
-	if npcModel then
-		npcModel:Destroy()
-		npcModel = nil
-		npcHumanoid = nil
-		npcRootPart = nil
-	end
-end
-
--- TARGET BINDING
-local function updateTarget()
-	if LocalPlayer.Character then
-		targetCharacter = LocalPlayer.Character
-		targetHumanoid = targetCharacter:FindFirstChildOfClass("Humanoid")
-		targetRootPart = targetCharacter:FindFirstChild("HumanoidRootPart")
-	else
-		targetCharacter = nil
-		targetHumanoid = nil
-		targetRootPart = nil
-	end
-end
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-	updateTarget()
-	if char then
-		char:WaitForChild("Humanoid").Died:Connect(function()
-			currentAIState = State.WAITING
-		end)
-	end
-end)
-
-if LocalPlayer.Character then
-	updateTarget()
-	LocalPlayer.Character:WaitForChild("Humanoid").Died:Connect(function()
-		currentAIState = State.WAITING
-	end)
-end
-
--- ADVANCED PREDICTION & PATHFINDING
-local function computePath(destination)
-	local path = PathfindingService:CreatePath({
-		AgentRadius = 2.5,
-		AgentHeight = 5,
-		AgentCanJump = true,
-		WaypointSpacing = 4,
-	})
-	
-	local success, err = pcall(function()
-		path:ComputeAsync(npcRootPart.Position, destination)
-	end)
-	
-	if success and path.Status == Enum.PathStatus.Success then
-		waypoints = path:GetWaypoints()
-		currentWaypointIndex = 2
-		return true
-	end
-	return false
-end
-
-local function getPredictedPosition()
-	if not targetRootPart or not targetHumanoid then return Vector3.new() end
-	local velocity = targetRootPart.Velocity
-	local speed = velocity.Magnitude
-	local predictionFactor = math.clamp(speed / 15, 0.5, 2.0)
-	return targetRootPart.Position + (velocity * 0.3 * predictionFactor)
-end
-
--- MAIN AI LOOP (RunService Heartbeat)
-RunService.Heartbeat:Connect(function(dt)
-	updateTarget()
-	
-	if not isAIActive or not npcModel or not npcHumanoid or not npcRootPart then
-		stateDisp.Text = "STATE: INACTIVE"
-		distDisp.Text = "DISTANCE: N/A"
-		speedDisp.Text = "SPEED: 0"
-		hpDisp.Text = "NPCHP: " .. currentHP
-		stuckDisp.Text = "STUCK: NO"
-		return
-	end
-	
-	if not targetRootPart or not targetHumanoid or targetHumanoid.Health <= 0 then
-		currentAIState = State.WAITING
-		stateDisp.Text = "STATE: WAITING (RESPAWN)"
-		return
-	end
-	
-	local distance = (targetRootPart.Position - npcRootPart.Position).Magnitude
-	
-	-- UI Updates
-	stateDisp.Text = "STATE: " .. currentAIState
-	distDisp.Text = string.format("DISTANCE: %.1f studs", distance)
-	speedDisp.Text = string.format("SPEED: %.1f", npcRootPart.Velocity.Magnitude)
-	hpDisp.Text = "NPCHP: " .. currentHP .. "/" .. CONFIG.MAX_HEALTH
-	
-	-- STATE MACHINE LOGIC
-	if currentAIState == State.WAITING then
-		if targetRootPart and targetHumanoid and targetHumanoid.Health > 0 then
-			currentAIState = State.CHASING
-		end
-		return
-	end
-	
-	-- Check Attack Range
-	if distance <= CONFIG.ATTACK_RANGE then
-		currentAIState = State.ATTACKING
-		npcHumanoid:MoveTo(npcRootPart.Position) -- Stop moving
+		local carryIcon, healIcon, uncarryIcon = getIcons()
 		
-		-- Look at target smoothly
-		local lookAtPos = Vector3.new(targetRootPart.Position.X, npcRootPart.Position.Y, targetRootPart.Position.Z)
-		npcRootPart.CFrame = CFrame.new(npcRootPart.Position, lookAtPos)
+		if carryIcon then
+			carryIcon.Visible = true
+			carryIcon.Active = true
+			carryIcon.Position = carryFixedPos
+		end
 		
-		if tick() - lastAttackTick >= CONFIG.ATTACK_COOLDOWN then
-			lastAttackTick = tick()
-			-- Simulate attack on LocalPlayer
-			if targetHumanoid then
-				targetHumanoid.Health = math.max(0, targetHumanoid.Health - 15)
-			end
+		if healIcon then
+			healIcon.Visible = true
+			healIcon.Active = true
+			healIcon.Position = healFixedPos
 		end
-		return
-	end
-	
-	-- Stuck Detector
-	if (npcRootPart.Position - lastPositionForStuck).Magnitude < 1.0 then
-		if time() - lastStuckCheckTick > CONFIG.STUCK_TIMEOUT then
-			currentAIState = State.RECOVERING
-			lastStuckCheckTick = time()
+		
+		if uncarryIcon then
+			uncarryIcon.Visible = true
+			uncarryIcon.Active = true
+			uncarryIcon.Position = uncarryFixedPos
 		end
-	else
-		lastStuckCheckTick = time()
-		lastPositionForStuck = npcRootPart.Position
-		stuckDisp.Text = "STUCK: NO"
-	end
-	
-	if currentAIState == State.RECOVERING then
-		stuckDisp.Text = "STUCK: YES (RECOVERING)"
-		npcHumanoid.Jump = true
-		npcHumanoid:MoveTo(npcRootPart.Position + Vector3.new(math.random(-8,8), 0, math.random(-8,8)))
-		task.wait(0.5)
-		currentAIState = State.CHASING
-		return
-	end
-	
-	-- Chasing & Repathing Loop
-	currentAIState = State.CHASING
-	npcHumanoid.WalkSpeed = CONFIG.CHASE_SPEED
-	
-	if tick() - lastRepathTick >= CONFIG.WAYPOINT_RECALC_INTERVAL then
-		lastRepathTick = tick()
-		local destination = getPredictedPosition()
-		computePath(destination)
-	end
-	
-	if waypoints and #waypoints > 0 then
-		if currentWaypointIndex <= #waypoints then
-			local waypoint = waypoints[currentWaypointIndex]
-			npcHumanoid:MoveTo(waypoint.Position)
-			
-			if waypoint.Action == Enum.PathWaypointAction.Jump then
-				npcHumanoid.Jump = true
-			end
-			
-			if (npcRootPart.Position - waypoint.Position).Magnitude < 4 then
-				currentWaypointIndex = currentWaypointIndex + 1
-			end
-		else
-			npcHumanoid:MoveTo(targetRootPart.Position)
-		end
-	else
-		npcHumanoid:MoveTo(targetRootPart.Position)
-	end
+	end)
 end)
