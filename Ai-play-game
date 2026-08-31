@@ -1,5 +1,5 @@
 --==============================================================
--- SPEED + AUTO JUMP + ESP CHAMS & OUTLINE (FULL + LUÔN CẬP NHẬT)
+-- SPEED + AUTO JUMP + INFINITE SLIDE SCRIPT (MIMICHAN)
 --==============================================================
 
 local Players = game:GetService("Players")
@@ -14,58 +14,6 @@ local LP = Players.LocalPlayer
 
 if CoreGui:FindFirstChild("SpeedAutoJump6D") then
     CoreGui.SpeedAutoJump6D:Destroy()
-end
-
---==============================================================
--- ESP STORAGE
---==============================================================
-
-local activeHighlights = {}
-
-local function removeEspForPlayer(player)
-    if activeHighlights[player] then
-        for _, obj in pairs(activeHighlights[player]) do
-            if obj and obj.Parent then
-                obj:Destroy()
-            end
-        end
-        activeHighlights[player] = nil
-    end
-end
-
-local function applyEspToCharacter(character, player)
-    removeEspForPlayer(player)
-
-    if player == LP then return end
-
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "MimichanESP"
-    highlight.Adornee = character
-    highlight.FillColor = Color3.fromRGB(0, 160, 255)       -- Màu xanh biển cho Chams (Fill)
-    highlight.FillTransparency = 0.5                        -- Độ trong suốt của thân nhân vật xuyên tường
-    highlight.OutlineColor = Color3.fromRGB(0, 220, 255)     -- Màu viền xanh sáng
-    highlight.OutlineTransparency = 0                      -- Viền rõ nét
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Luôn hiển thị xuyên tường
-    highlight.Parent = CoreGui                              -- Đưa vào CoreGui để tối ưu và không bị xóa khi character đổi
-
-    activeHighlights[player] = {highlight}
-end
-
-local function setupPlayerEsp(player)
-    if player == LP then return end
-
-    player.CharacterAdded:Connect(function(character)
-        task.wait(0.5) -- Đợi character load xong các bộ phận
-        applyEspToCharacter(character, player)
-    end)
-
-    player.CharacterRemoving:Connect(function()
-        removeEspForPlayer(player)
-    end)
-
-    if player.Character then
-        applyEspToCharacter(player.Character, player)
-    end
 end
 
 --==============================================================
@@ -84,7 +32,7 @@ gui.Parent = CoreGui
 
 local frame = Instance.new("Frame")
 frame.Name = "Main"
-frame.Size = UDim2.new(0,100,0,116) -- Mở rộng thêm 1 dòng cho nút ESP
+frame.Size = UDim2.new(0,100,0,116)
 frame.Position = UDim2.new(0,20,0.4,0)
 frame.BackgroundColor3 = Color3.fromRGB(12,15,25)
 frame.BackgroundTransparency = 0.15
@@ -128,7 +76,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1,-10,0,15)
 title.Position = UDim2.new(0,5,0,2)
 title.BackgroundTransparency = 1
-title.Text = "Evade"
+title.Text = "⚡ MIMICHAN"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 9
 title.TextColor3 = Color3.fromRGB(180,220,255)
@@ -174,8 +122,8 @@ box.Size = UDim2.new(0.42,-8,0,22)
 box.Position = UDim2.new(0.58,2,0,19)
 box.BackgroundColor3 = Color3.fromRGB(20,25,38)
 box.BorderSizePixel = 0
-box.Text = "20"
-box.PlaceholderText = "0"
+box.Text = "-8"
+box.PlaceholderText = "SPD"
 box.Font = Enum.Font.GothamBold
 box.TextSize = 9
 box.TextColor3 = Color3.fromRGB(220,235,255)
@@ -223,32 +171,32 @@ jumpStroke.Color = Color3.fromRGB(70,90,120)
 jumpStroke.Parent = jumpToggle
 
 --==============================================================
--- ESP BUTTON
+-- INFINITE SLIDE BUTTON
 --==============================================================
 
-local espToggle = Instance.new("TextButton")
-espToggle.Name = "EspToggle"
-espToggle.Size = UDim2.new(1,-10,0,22)
-espToggle.Position = UDim2.new(0,5,0,71)
-espToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-espToggle.BorderSizePixel = 0
-espToggle.Text = "ESP OFF"
-espToggle.Font = Enum.Font.GothamBold
-espToggle.TextSize = 8
-espToggle.TextColor3 = Color3.fromRGB(170,180,200)
-espToggle.AutoButtonColor = false
-espToggle.ZIndex = 5
-espToggle.Parent = frame
+local slideToggle = Instance.new("TextButton")
+slideToggle.Name = "SlideToggle"
+slideToggle.Size = UDim2.new(1,-10,0,22)
+slideToggle.Position = UDim2.new(0,5,0,71)
+slideToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+slideToggle.BorderSizePixel = 0
+slideToggle.Text = "INF SLIDE OFF"
+slideToggle.Font = Enum.Font.GothamBold
+slideToggle.TextSize = 8
+slideToggle.TextColor3 = Color3.fromRGB(170,180,200)
+slideToggle.AutoButtonColor = false
+slideToggle.ZIndex = 5
+slideToggle.Parent = frame
 
-local espCorner = Instance.new("UICorner")
-espCorner.CornerRadius = UDim.new(0,7)
-espCorner.Parent = espToggle
+local slideCorner = Instance.new("UICorner")
+slideCorner.CornerRadius = UDim.new(0,7)
+slideCorner.Parent = slideToggle
 
-local espStroke = Instance.new("UIStroke")
-espStroke.Thickness = 1
-espStroke.Transparency = 0.2
-espStroke.Color = Color3.fromRGB(70,90,120)
-espStroke.Parent = espToggle
+local slideStroke = Instance.new("UIStroke")
+slideStroke.Thickness = 1
+slideStroke.Transparency = 0.2
+slideStroke.Color = Color3.fromRGB(70,90,120)
+slideStroke.Parent = slideToggle
 
 --==============================================================
 -- STATUS
@@ -272,7 +220,7 @@ status.Parent = frame
 
 local speedEnabled = false
 local autoJumpEnabled = false
-local espEnabled = false
+local slideEnabled = false
 
 local speed = -8
 local jumpInterval = 0.1
@@ -365,48 +313,32 @@ jumpToggle.MouseButton1Click:Connect(function()
 end)
 
 --==============================================================
--- ESP TOGGLE
+-- INFINITE SLIDE TOGGLE
 --==============================================================
 
-espToggle.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
+slideToggle.MouseButton1Click:Connect(function()
+    slideEnabled = not slideEnabled
 
-    if espEnabled then
-        espToggle.Text = "ESP ON"
-        espToggle.BackgroundColor3 = Color3.fromRGB(0, 100, 150)
-        espToggle.TextColor3 = Color3.fromRGB(220, 245, 255)
-        espStroke.Color = Color3.fromRGB(0, 180, 255)
-        status.Text = "● ESP CHAMS ACTIVE"
-        status.TextColor3 = Color3.fromRGB(0, 200, 255)
+    if slideEnabled then
+        slideToggle.Text = "INF SLIDE ON"
+        slideToggle.BackgroundColor3 = Color3.fromRGB(150,80,30)
+        slideToggle.TextColor3 = Color3.fromRGB(255,235,220)
+        slideStroke.Color = Color3.fromRGB(255,150,80)
+        status.Text = "● INF SLIDE ACTIVE"
+        status.TextColor3 = Color3.fromRGB(255,160,80)
 
-        -- Bật ESP cho toàn bộ người chơi hiện tại
-        for _, p in ipairs(Players:GetPlayers()) do
-            setupPlayerEsp(p)
-        end
+        -- Thực thi loadstring Infinite Slide
+        pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/catwljz/rpzz/refs/heads/main/infinity-slide.txt'))()
+        end)
     else
-        espToggle.Text = "ESP OFF"
-        espToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        espToggle.TextColor3 = Color3.fromRGB(170,180,200)
-        espStroke.Color = Color3.fromRGB(70,90,120)
+        slideToggle.Text = "INF SLIDE OFF"
+        slideToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+        slideToggle.TextColor3 = Color3.fromRGB(170,180,200)
+        slideStroke.Color = Color3.fromRGB(70,90,120)
         status.Text = "● READY"
         status.TextColor3 = Color3.fromRGB(100,120,145)
-
-        -- Xóa toàn bộ ESP khi tắt để tránh lag/tải CPU ngầm
-        for p, _ in pairs(activeHighlights) do
-            removeEspForPlayer(p)
-        end
     end
-end)
-
--- Lắng nghe người chơi mới vào hoặc rời game khi ESP đang bật
-Players.PlayerAdded:Connect(function(player)
-    if espEnabled then
-        setupPlayerEsp(player)
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    removeEspForPlayer(player)
 end)
 
 --==============================================================
@@ -503,3 +435,4 @@ RunService.RenderStepped:Connect(function()
 		end
 	end)
 end)
+
