@@ -1,7 +1,5 @@
 --==============================================================
--- MINI SLIDE EVADE 6D • COMPACT 50%
--- SLIDE + AUTO JUMP SPAM
--- MOBILE • DRAG • GLASS • GLOW • SPEED INPUT
+-- SPEED + AUTO JUMP 6D • COMPACT 50% (MODIFIED VÔ HẠN)
 --==============================================================
 
 local Players = game:GetService("Players")
@@ -14,8 +12,8 @@ local LP = Players.LocalPlayer
 -- CLEAR OLD UI
 --==============================================================
 
-if CoreGui:FindFirstChild("MiniSlide6D") then
-    CoreGui.MiniSlide6D:Destroy()
+if CoreGui:FindFirstChild("SpeedAutoJump6D") then
+    CoreGui.SpeedAutoJump6D:Destroy()
 end
 
 --==============================================================
@@ -23,7 +21,7 @@ end
 --==============================================================
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "MiniSlide6D"
+gui.Name = "Evade"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = CoreGui
@@ -78,7 +76,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1,-10,0,15)
 title.Position = UDim2.new(0,5,0,2)
 title.BackgroundTransparency = 1
-title.Text = "⚡ SLIDE 6D"
+title.Text = "⚡ SPEED"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 9
 title.TextColor3 = Color3.fromRGB(180,220,255)
@@ -87,32 +85,32 @@ title.ZIndex = 5
 title.Parent = frame
 
 --==============================================================
--- SLIDE BUTTON
+-- SPEED TOGGLE
 --==============================================================
 
-local toggle = Instance.new("TextButton")
-toggle.Name = "SlideToggle"
-toggle.Size = UDim2.new(0.58,-7,0,22)
-toggle.Position = UDim2.new(0,5,0,19)
-toggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-toggle.BorderSizePixel = 0
-toggle.Text = "SLIDE OFF"
-toggle.Font = Enum.Font.GothamBold
-toggle.TextSize = 8
-toggle.TextColor3 = Color3.fromRGB(170,180,200)
-toggle.AutoButtonColor = false
-toggle.ZIndex = 5
-toggle.Parent = frame
+local speedToggle = Instance.new("TextButton")
+speedToggle.Name = "SpeedToggle"
+speedToggle.Size = UDim2.new(0.58,-7,0,22)
+speedToggle.Position = UDim2.new(0,5,0,19)
+speedToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+speedToggle.BorderSizePixel = 0
+speedToggle.Text = "SPEED OFF"
+speedToggle.Font = Enum.Font.GothamBold
+speedToggle.TextSize = 8
+speedToggle.TextColor3 = Color3.fromRGB(170,180,200)
+speedToggle.AutoButtonColor = false
+speedToggle.ZIndex = 5
+speedToggle.Parent = frame
 
-local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = UDim.new(0,7)
-toggleCorner.Parent = toggle
+local speedCorner = Instance.new("UICorner")
+speedCorner.CornerRadius = UDim.new(0,7)
+speedCorner.Parent = speedToggle
 
-local toggleStroke = Instance.new("UIStroke")
-toggleStroke.Thickness = 1
-toggleStroke.Transparency = 0.2
-toggleStroke.Color = Color3.fromRGB(70,90,120)
-toggleStroke.Parent = toggle
+local speedStroke = Instance.new("UIStroke")
+speedStroke.Thickness = 1
+speedStroke.Transparency = 0.2
+speedStroke.Color = Color3.fromRGB(70,90,120)
+speedStroke.Parent = speedToggle
 
 --==============================================================
 -- SPEED INPUT
@@ -124,7 +122,7 @@ box.Size = UDim2.new(0.42,-8,0,22)
 box.Position = UDim2.new(0.58,2,0,19)
 box.BackgroundColor3 = Color3.fromRGB(20,25,38)
 box.BorderSizePixel = 0
-box.Text = "-8"
+box.Text = "20"
 box.PlaceholderText = "SPD"
 box.Font = Enum.Font.GothamBold
 box.TextSize = 9
@@ -154,7 +152,7 @@ jumpToggle.Size = UDim2.new(1,-10,0,22)
 jumpToggle.Position = UDim2.new(0,5,0,45)
 jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
 jumpToggle.BorderSizePixel = 0
-jumpToggle.Text = "JUMP SPAM OFF"
+jumpToggle.Text = "AUTO JUMP OFF"
 jumpToggle.Font = Enum.Font.GothamBold
 jumpToggle.TextSize = 8
 jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
@@ -192,69 +190,74 @@ status.Parent = frame
 -- VARIABLES
 --==============================================================
 
-local slideEnabled = false
+local speedEnabled = false
 local autoJumpEnabled = false
 
 local speed = -8
+local jumpInterval = 0.1
 
--- Khoảng thời gian giữa mỗi lần spam Jump
-local jumpCooldown = 0.12
-local lastJump = 0
+--==============================================================
+-- AUTO JUMP LOGIC (VÔ HẠN - HUMANOID STATE)
+--==============================================================
+
+local function setupAutoJump(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    task.spawn(function()
+        while character.Parent and autoJumpEnabled do
+            task.wait(jumpInterval)
+            if humanoid and humanoid.Health > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
 
 --==============================================================
 -- SPEED INPUT
 --==============================================================
 
 box.FocusLost:Connect(function()
-
     local n = tonumber(box.Text)
-
     if n then
         speed = n
         box.Text = tostring(n)
     else
         box.Text = tostring(speed)
     end
-
 end)
 
 --==============================================================
--- SLIDE TOGGLE
+-- SPEED TOGGLE
 --==============================================================
 
-toggle.MouseButton1Click:Connect(function()
+speedToggle.MouseButton1Click:Connect(function()
+    speedEnabled = not speedEnabled
 
-    slideEnabled = not slideEnabled
-
-    if slideEnabled then
-
-        toggle.Text = "SLIDE ON"
-        toggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
-        toggle.TextColor3 = Color3.fromRGB(235,245,255)
-
-        toggleStroke.Color = Color3.fromRGB(80,180,255)
+    if speedEnabled then
+        speedToggle.Text = "SPEED ON"
+        speedToggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
+        speedToggle.TextColor3 = Color3.fromRGB(235,245,255)
+        speedStroke.Color = Color3.fromRGB(80,180,255)
 
         stroke.Color = Color3.fromRGB(70,170,255)
         glow.ImageTransparency = 0.55
 
         if autoJumpEnabled then
-            status.Text = "● SLIDE + JUMP"
+            status.Text = "● SPEED + JUMP"
         else
-            status.Text = "● SLIDE ACTIVE"
+            status.Text = "● SPEED ACTIVE"
         end
 
         status.TextColor3 = Color3.fromRGB(80,190,255)
-
     else
-
-        toggle.Text = "SLIDE OFF"
-        toggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        toggle.TextColor3 = Color3.fromRGB(170,180,200)
-
-        toggleStroke.Color = Color3.fromRGB(70,90,120)
+        speedToggle.Text = "SPEED OFF"
+        speedToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+        speedToggle.TextColor3 = Color3.fromRGB(170,180,200)
+        speedStroke.Color = Color3.fromRGB(70,90,120)
 
         if autoJumpEnabled then
-            status.Text = "● JUMP SPAM"
+            status.Text = "● AUTO JUMP"
             status.TextColor3 = Color3.fromRGB(80,220,160)
         else
             status.Text = "● READY"
@@ -263,63 +266,58 @@ toggle.MouseButton1Click:Connect(function()
             stroke.Color = Color3.fromRGB(80,150,255)
             glow.ImageTransparency = 0.72
         end
-
     end
-
 end)
 
 --==============================================================
--- AUTO JUMP SPAM TOGGLE
+-- AUTO JUMP TOGGLE
 --==============================================================
 
 jumpToggle.MouseButton1Click:Connect(function()
-
     autoJumpEnabled = not autoJumpEnabled
 
     if autoJumpEnabled then
-
-        jumpToggle.Text = "JUMP SPAM ON"
+        jumpToggle.Text = "AUTO JUMP ON"
         jumpToggle.BackgroundColor3 = Color3.fromRGB(30,100,70)
         jumpToggle.TextColor3 = Color3.fromRGB(220,255,240)
-
         jumpStroke.Color = Color3.fromRGB(70,220,150)
 
-        if slideEnabled then
-            status.Text = "● SLIDE + JUMP"
-        else
-            status.Text = "● JUMP SPAM"
-        end
+        status.Text = speedEnabled
+            and "● SPEED + JUMP"
+            or "● AUTO JUMP"
 
         status.TextColor3 = Color3.fromRGB(80,220,160)
 
+        -- Kích hoạt ngay lập tức nếu nhân vật đã có sẵn
+        if LP.Character then
+            setupAutoJump(LP.Character)
+        end
     else
-
-        jumpToggle.Text = "JUMP SPAM OFF"
+        jumpToggle.Text = "AUTO JUMP OFF"
         jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
         jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
-
         jumpStroke.Color = Color3.fromRGB(70,90,120)
 
-        if slideEnabled then
-            status.Text = "● SLIDE ACTIVE"
-            status.TextColor3 = Color3.fromRGB(80,190,255)
-        else
-            status.Text = "● READY"
-            status.TextColor3 = Color3.fromRGB(100,120,145)
-        end
+        status.Text = speedEnabled
+            and "● SPEED ACTIVE"
+            or "● READY"
 
+        status.TextColor3 = speedEnabled
+            and Color3.fromRGB(80,190,255)
+            or Color3.fromRGB(100,120,145)
     end
-
 end)
 
 --==============================================================
--- MAIN LOOP
+-- SPEED LOOP
 --==============================================================
 
 RunService.RenderStepped:Connect(function()
+    if not speedEnabled then
+        return
+    end
 
     local char = LP.Character
-
     if not char then
         return
     end
@@ -327,76 +325,35 @@ RunService.RenderStepped:Connect(function()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
 
-    if not hrp or not hum then
-        return
-    end
-
-    --==========================================================
-    -- SLIDE
-    --==========================================================
-
-    if slideEnabled and hum.MoveDirection.Magnitude > 0 then
-
+    if hrp and hum and hum.MoveDirection.Magnitude > 0 then
         hrp.Velocity = Vector3.new(
             hum.MoveDirection.X * speed * 10,
             hrp.Velocity.Y,
             hum.MoveDirection.Z * speed * 10
         )
-
     end
-
-    --==========================================================
-    -- AUTO JUMP SPAM
-    --==========================================================
-
-    if autoJumpEnabled then
-
-        if tick() - lastJump >= jumpCooldown then
-
-            -- Spam lệnh Jump
-            hum.Jump = true
-
-            lastJump = tick()
-
-        end
-
-    end
-
 end)
 
 --==============================================================
 -- RESPAWN SUPPORT
 --==============================================================
 
-LP.CharacterAdded:Connect(function()
+LP.CharacterAdded:Connect(function(newChar)
+    task.wait(0.5)
 
-    task.wait(0.25)
-
-    -- Reset timer để bắt đầu spam lại ngay sau respawn
-    lastJump = 0
-
-    if slideEnabled and autoJumpEnabled then
-
-        status.Text = "● SLIDE + JUMP"
-        status.TextColor3 = Color3.fromRGB(80,220,160)
-
-    elseif slideEnabled then
-
-        status.Text = "● SLIDE ACTIVE"
-        status.TextColor3 = Color3.fromRGB(80,190,255)
-
-    elseif autoJumpEnabled then
-
-        status.Text = "● JUMP SPAM"
-        status.TextColor3 = Color3.fromRGB(80,220,160)
-
-    else
-
-        status.Text = "● READY"
-        status.TextColor3 = Color3.fromRGB(100,120,145)
-
+    if autoJumpEnabled then
+        setupAutoJump(newChar)
     end
 
+    if speedEnabled and autoJumpEnabled then
+        status.Text = "● SPEED + JUMP"
+    elseif speedEnabled then
+        status.Text = "● SPEED ACTIVE"
+    elseif autoJumpEnabled then
+        status.Text = "● AUTO JUMP"
+    else
+        status.Text = "● READY"
+    end
 end)
 -- =============================================================================
 -- ZYNTRIX - AUTO LOAD & LOCK FIXED POSITIONS (NO UI, NO COPY)
@@ -455,3 +412,4 @@ RunService.RenderStepped:Connect(function()
 		end
 	end)
 end)
+
