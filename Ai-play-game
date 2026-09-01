@@ -499,3 +499,321 @@ RunService.RenderStepped:Connect(function()
         end
     end)
 end)
+--// 👻 TP RANDOM 0.5s + UI 5D MINI
+--// TP tới player random -> 0.5 giây -> quay lại vị trí ban đầu
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+--==================================================
+-- CONFIG
+--==================================================
+local CONFIG = {
+    GuiName = "MiniTP5D",
+    ReturnDelay = 0.5
+}
+
+--==================================================
+-- XÓA GUI CŨ
+--==================================================
+pcall(function()
+    local oldGui = game.CoreGui:FindFirstChild(CONFIG.GuiName)
+    if oldGui then
+        oldGui:Destroy()
+    end
+end)
+
+--==================================================
+-- GUI
+--==================================================
+local gui = Instance.new("ScreenGui")
+gui.Name = CONFIG.GuiName
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = game.CoreGui
+
+--==================================================
+-- ICON 👻
+--==================================================
+local icon = Instance.new("TextButton")
+icon.Name = "MiniIcon"
+icon.Parent = gui
+
+icon.Size = UDim2.new(0, 32, 0, 32)
+icon.Position = UDim2.new(0, 15, 0.5, -16)
+
+icon.Text = "👻"
+icon.TextScaled = true
+icon.Font = Enum.Font.GothamBold
+
+icon.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+icon.BackgroundTransparency = 0.08
+
+icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+icon.BorderSizePixel = 0
+icon.Active = true
+icon.Draggable = true
+
+local iconCorner = Instance.new("UICorner")
+iconCorner.CornerRadius = UDim.new(1, 0)
+iconCorner.Parent = icon
+
+--==================================================
+-- MENU 5D
+--==================================================
+local menu = Instance.new("Frame")
+menu.Name = "Menu5D"
+menu.Parent = gui
+
+menu.Size = UDim2.new(0, 145, 0, 75)
+menu.Position = UDim2.new(0, 55, 0.5, -37)
+
+menu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+menu.BackgroundTransparency = 0.08
+
+menu.BorderSizePixel = 0
+
+menu.Active = true
+menu.Draggable = true
+menu.Visible = false
+
+local menuCorner = Instance.new("UICorner")
+menuCorner.CornerRadius = UDim.new(0, 10)
+menuCorner.Parent = menu
+
+--==================================================
+-- TITLE
+--==================================================
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Parent = menu
+
+title.Size = UDim2.new(1, -10, 0, 22)
+title.Position = UDim2.new(0, 5, 0, 3)
+
+title.BackgroundTransparency = 1
+
+title.Text = "👻 TP RANDOM 5D"
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+--==================================================
+-- TP BUTTON
+--==================================================
+local tpBtn = Instance.new("TextButton")
+tpBtn.Name = "RandomTP"
+tpBtn.Parent = menu
+
+tpBtn.Size = UDim2.new(1, -10, 0, 35)
+tpBtn.Position = UDim2.new(0, 5, 0, 32)
+
+tpBtn.Text = "TP RANDOM"
+tpBtn.TextScaled = true
+tpBtn.Font = Enum.Font.GothamBold
+
+tpBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+
+tpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+tpBtn.BorderSizePixel = 0
+tpBtn.AutoButtonColor = true
+
+local tpCorner = Instance.new("UICorner")
+tpCorner.CornerRadius = UDim.new(0, 8)
+tpCorner.Parent = tpBtn
+
+--==================================================
+-- MỞ / ĐÓNG MENU
+--==================================================
+icon.MouseButton1Click:Connect(function()
+    menu.Visible = not menu.Visible
+end)
+
+--==================================================
+-- RANDOM PLAYER
+--==================================================
+local function randomPlayer()
+
+    local list = {}
+
+    for _, v in ipairs(Players:GetPlayers()) do
+
+        if v ~= player then
+
+            local char = v.Character
+
+            if char then
+
+                local root = char:FindFirstChild("HumanoidRootPart")
+
+                if root then
+                    table.insert(list, v)
+                end
+
+            end
+
+        end
+
+    end
+
+    if #list == 0 then
+        return nil
+    end
+
+    return list[math.random(1, #list)]
+end
+
+--==================================================
+-- TP RANDOM
+--==================================================
+local busy = false
+
+tpBtn.MouseButton1Click:Connect(function()
+
+    if busy then
+        return
+    end
+
+    busy = true
+
+    -- Nhân vật hiện tại
+    local char = player.Character
+
+    if not char then
+        busy = false
+        return
+    end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        busy = false
+        return
+    end
+
+    -- LƯU VỊ TRÍ HIỆN TẠI
+    local oldCFrame = root.CFrame
+
+    -- LẤY PLAYER RANDOM
+    local target = randomPlayer()
+
+    if not target then
+        busy = false
+        return
+    end
+
+    local targetChar = target.Character
+
+    if not targetChar then
+        busy = false
+        return
+    end
+
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+
+    if not targetRoot then
+        busy = false
+        return
+    end
+
+    --==================================================
+    -- TP TỚI PLAYER RANDOM
+    --==================================================
+    root.CFrame = targetRoot.CFrame
+
+    --==================================================
+    -- CHỜ 0.5 GIÂY
+    --==================================================
+    task.wait(CONFIG.ReturnDelay)
+
+    --==================================================
+    -- QUAY LẠI VỊ TRÍ CŨ
+    --==================================================
+    char = player.Character
+
+    if char then
+
+        root = char:FindFirstChild("HumanoidRootPart")
+
+        if root then
+            root.CFrame = oldCFrame
+        end
+
+    end
+
+    busy = false
+
+end)-- =============================================================================
+-- ZYNTRIX - AUTO LOAD & LOCK POSITIONS FOR MOBILE (3 BUTTONS)
+-- =============================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- Cấu hình tọa độ cố định sẵn (đã được khóa cứng ngay từ đầu)
+local carryCustomPos = UDim2.new(0.699999988, 223, 0.400000006, -15)
+local healCustomPos = UDim2.new(0.300000012, 227, 0.400000006, 48)
+local uncarryCustomPos = UDim2.new(0.5, 0, 0.4, 0) -- Dùng tạm vị trí giữa nếu chưa có định nghĩa riêng
+
+local targetSize = UDim2.new(0, 100, 0, 100)
+
+-- Hàm tìm kiếm đường dẫn UI an toàn
+local function getIcons()
+	local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+	if not pGui then return nil, nil, nil end
+	local gameFolder = pGui:FindFirstChild("Game")
+	if not gameFolder then return nil, nil, nil end
+	local hud = gameFolder:FindFirstChild("HUD")
+	if not hud then return nil, nil, nil end
+	local mobile = hud:FindFirstChild("Mobile")
+	if not mobile then return nil, nil, nil end
+	local center = mobile:FindFirstChild("Center")
+	if not center then return nil, nil, nil end
+	local interact1 = center:FindFirstChild("Interact")
+	if not interact1 then return nil, nil, nil end
+	local interact2 = interact1:FindFirstChild("Interact")
+	if not interact2 then return nil, nil, nil end
+	
+	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon"), interact2:FindFirstChild("UncarryIcon")
+end
+
+-- Vòng lặp tự động áp dụng tọa độ, kích thước và chống vô hiệu hóa liên tục
+RunService.RenderStepped:Connect(function()
+	pcall(function()
+		local carryIcon, healIcon, uncarryIcon = getIcons()
+		
+		if carryIcon then
+			carryIcon.Visible = true
+			carryIcon.Active = true
+			carryIcon.Position = carryCustomPos
+			carryIcon.Size = targetSize
+		end
+		
+		if healIcon then
+			healIcon.Visible = true
+			healIcon.Active = true
+			healIcon.Position = healCustomPos
+			healIcon.Size = targetSize
+		end
+		
+		if uncarryIcon then
+			uncarryIcon.Visible = true
+			uncarryIcon.Active = true
+			uncarryIcon.Position = uncarryCustomPos
+			uncarryIcon.Size = targetSize
+		end
+	end)
+end)
+
+pcall(function()
+	StarterGui:SetCore("SendNotification", {
+		Title = "Zyntrix Auto-Locked",
+		Text = "Đã tải cấu hình và khóa cứng tọa độ cho 3 nút!",
+		Duration = 4
+	})
+end)
