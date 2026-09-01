@@ -1,10 +1,11 @@
 --==============================================================
--- SPEED + AUTO JUMP + INFINITE SLIDE SCRIPT (MIMICHAN)
+-- SPEED + AUTO JUMP + INFINITE SLIDE (MENU CHÍNH + MENU PHỤ)
 --==============================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 
 local LP = Players.LocalPlayer
 
@@ -16,8 +17,12 @@ if CoreGui:FindFirstChild("SpeedAutoJump6D") then
     CoreGui.SpeedAutoJump6D:Destroy()
 end
 
+if CoreGui:FindFirstChild("EvadeInfiniteSlideGui") then
+    CoreGui.EvadeInfiniteSlideGui:Destroy()
+end
+
 --==============================================================
--- GUI
+-- MAIN GUI (SPEED & AUTO JUMP & NÚT MỞ UI PHỤ SLIDE)
 --==============================================================
 
 local gui = Instance.new("ScreenGui")
@@ -25,10 +30,6 @@ gui.Name = "SpeedAutoJump6D"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.Parent = CoreGui
-
---==============================================================
--- MAIN FRAME
---==============================================================
 
 local frame = Instance.new("Frame")
 frame.Name = "Main"
@@ -52,10 +53,6 @@ stroke.Transparency = 0.1
 stroke.Color = Color3.fromRGB(80,150,255)
 stroke.Parent = frame
 
---==============================================================
--- GLOW
---==============================================================
-
 local glow = Instance.new("ImageLabel")
 glow.Name = "Glow"
 glow.AnchorPoint = Vector2.new(0.5,0.5)
@@ -68,15 +65,11 @@ glow.ImageTransparency = 0.72
 glow.ZIndex = 1
 glow.Parent = frame
 
---==============================================================
--- TITLE
---==============================================================
-
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1,-10,0,15)
 title.Position = UDim2.new(0,5,0,2)
 title.BackgroundTransparency = 1
-title.Text = "⚡ MIMICHAN"
+title.Text = "Evade-Zyntrix"
 title.Font = Enum.Font.GothamBold
 title.TextSize = 9
 title.TextColor3 = Color3.fromRGB(180,220,255)
@@ -84,10 +77,7 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.ZIndex = 5
 title.Parent = frame
 
---==============================================================
 -- SPEED TOGGLE
---==============================================================
-
 local speedToggle = Instance.new("TextButton")
 speedToggle.Name = "SpeedToggle"
 speedToggle.Size = UDim2.new(0.58,-7,0,22)
@@ -112,10 +102,7 @@ speedStroke.Transparency = 0.2
 speedStroke.Color = Color3.fromRGB(70,90,120)
 speedStroke.Parent = speedToggle
 
---==============================================================
 -- SPEED INPUT
---==============================================================
-
 local box = Instance.new("TextBox")
 box.Name = "SpeedBox"
 box.Size = UDim2.new(0.42,-8,0,22)
@@ -142,10 +129,7 @@ boxStroke.Transparency = 0.2
 boxStroke.Color = Color3.fromRGB(60,80,110)
 boxStroke.Parent = box
 
---==============================================================
 -- AUTO JUMP BUTTON
---==============================================================
-
 local jumpToggle = Instance.new("TextButton")
 jumpToggle.Name = "AutoJumpToggle"
 jumpToggle.Size = UDim2.new(1,-10,0,22)
@@ -170,38 +154,32 @@ jumpStroke.Transparency = 0.2
 jumpStroke.Color = Color3.fromRGB(70,90,120)
 jumpStroke.Parent = jumpToggle
 
---==============================================================
--- INFINITE SLIDE BUTTON
---==============================================================
+-- NÚT MỞ MENU PHỤ (SLIDE MENU)
+local slideMenuToggle = Instance.new("TextButton")
+slideMenuToggle.Name = "SlideMenuToggle"
+slideMenuToggle.Size = UDim2.new(1,-10,0,22)
+slideMenuToggle.Position = UDim2.new(0,5,0,71)
+slideMenuToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+slideMenuToggle.BorderSizePixel = 0
+slideMenuToggle.Text = "SLIDE MENU"
+slideMenuToggle.Font = Enum.Font.GothamBold
+slideMenuToggle.TextSize = 8
+slideMenuToggle.TextColor3 = Color3.fromRGB(170,180,200)
+slideMenuToggle.AutoButtonColor = false
+slideMenuToggle.ZIndex = 5
+slideMenuToggle.Parent = frame
 
-local slideToggle = Instance.new("TextButton")
-slideToggle.Name = "SlideToggle"
-slideToggle.Size = UDim2.new(1,-10,0,22)
-slideToggle.Position = UDim2.new(0,5,0,71)
-slideToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-slideToggle.BorderSizePixel = 0
-slideToggle.Text = "INF SLIDE OFF"
-slideToggle.Font = Enum.Font.GothamBold
-slideToggle.TextSize = 8
-slideToggle.TextColor3 = Color3.fromRGB(170,180,200)
-slideToggle.AutoButtonColor = false
-slideToggle.ZIndex = 5
-slideToggle.Parent = frame
+local slideMenuCorner = Instance.new("UICorner")
+slideMenuCorner.CornerRadius = UDim.new(0,7)
+slideMenuCorner.Parent = slideMenuToggle
 
-local slideCorner = Instance.new("UICorner")
-slideCorner.CornerRadius = UDim.new(0,7)
-slideCorner.Parent = slideToggle
+local slideMenuStroke = Instance.new("UIStroke")
+slideMenuStroke.Thickness = 1
+slideMenuStroke.Transparency = 0.2
+slideMenuStroke.Color = Color3.fromRGB(70,90,120)
+slideMenuStroke.Parent = slideMenuToggle
 
-local slideStroke = Instance.new("UIStroke")
-slideStroke.Thickness = 1
-slideStroke.Transparency = 0.2
-slideStroke.Color = Color3.fromRGB(70,90,120)
-slideStroke.Parent = slideToggle
-
---==============================================================
--- STATUS
---==============================================================
-
+-- STATUS MAIN
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1,-10,0,14)
 status.Position = UDim2.new(0,5,0,96)
@@ -214,38 +192,156 @@ status.TextXAlignment = Enum.TextXAlignment.Left
 status.ZIndex = 5
 status.Parent = frame
 
+
 --==============================================================
--- VARIABLES
+-- SECOND UI (MENU PHỤ CHỨA INFINITE SLIDE - GIỐNG Y HỆT GIAO DIỆN CHÍNH)
+--==============================================================
+
+local CONFIG = {
+    GuiName = "EvadeInfiniteSlideGui",
+    HoverOffset = 0.001
+}
+
+local slideGui = Instance.new("ScreenGui")
+slideGui.Name = CONFIG.GuiName
+slideGui.ResetOnSpawn = false
+slideGui.IgnoreGuiInset = true
+slideGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+slideGui.Parent = CoreGui
+slideGui.Enabled = false -- Ban đầu ẩn đi, bấm nút ở menu chính mới hiện
+
+local slideFrame = Instance.new("Frame")
+slideFrame.Name = "MainSlide"
+slideFrame.Size = UDim2.new(0, 100, 0, 70)
+slideFrame.Position = UDim2.new(0, 130, 0.4, 0) -- Nằm cạnh menu chính
+slideFrame.BackgroundColor3 = Color3.fromRGB(12, 15, 25)
+slideFrame.BackgroundTransparency = 0.15
+slideFrame.BorderSizePixel = 0
+slideFrame.Active = true
+slideFrame.Draggable = true
+slideFrame.ZIndex = 2
+slideFrame.Parent = slideGui
+
+local slideCorner = Instance.new("UICorner")
+slideCorner.CornerRadius = UDim.new(0, 9)
+slideCorner.Parent = slideFrame
+
+local slideStroke = Instance.new("UIStroke")
+slideStroke.Thickness = 1
+slideStroke.Transparency = 0.1
+slideStroke.Color = Color3.fromRGB(80, 150, 255)
+slideStroke.Parent = slideFrame
+
+local slideGlow = Instance.new("ImageLabel")
+slideGlow.Name = "Glow"
+slideGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+slideGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+slideGlow.Size = UDim2.new(1, 18, 1, 18)
+slideGlow.BackgroundTransparency = 1
+slideGlow.Image = "rbxassetid://5028857084"
+slideGlow.ImageColor3 = Color3.fromRGB(40, 120, 255)
+slideGlow.ImageTransparency = 0.72
+slideGlow.ZIndex = 1
+slideGlow.Parent = slideFrame
+
+local slideTitle = Instance.new("TextLabel")
+slideTitle.Size = UDim2.new(1,-10,0,15)
+slideTitle.Position = UDim2.new(0,5,0,2)
+slideTitle.BackgroundTransparency = 1
+slideTitle.Text = "⚡ SLIDE MENU"
+slideTitle.Font = Enum.Font.GothamBold
+slideTitle.TextSize = 9
+slideTitle.TextColor3 = Color3.fromRGB(180,220,255)
+slideTitle.TextXAlignment = Enum.TextXAlignment.Left
+slideTitle.ZIndex = 5
+slideTitle.Parent = slideFrame
+
+local slideToggle = Instance.new("TextButton")
+slideToggle.Name = "ToggleSlideButton"
+slideToggle.Size = UDim2.new(1, -10, 0, 22)
+slideToggle.Position = UDim2.new(0, 5, 0, 19)
+slideToggle.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
+slideToggle.BorderSizePixel = 0
+slideToggle.Text = "SLIDE OFF"
+slideToggle.Font = Enum.Font.GothamBold
+slideToggle.TextSize = 8
+slideToggle.TextColor3 = Color3.fromRGB(170, 180, 200)
+slideToggle.AutoButtonColor = false
+slideToggle.ZIndex = 5
+slideToggle.Parent = slideFrame
+
+local slideBtnCorner = Instance.new("UICorner")
+slideBtnCorner.CornerRadius = UDim.new(0, 7)
+slideBtnCorner.Parent = slideToggle
+
+local slideBtnStroke = Instance.new("UIStroke")
+slideBtnStroke.Thickness = 1
+slideBtnStroke.Transparency = 0.2
+slideBtnStroke.Color = Color3.fromRGB(70, 90, 120)
+slideBtnStroke.Parent = slideToggle
+
+local slideStatus = Instance.new("TextLabel")
+slideStatus.Size = UDim2.new(1, -10, 0, 14)
+slideStatus.Position = UDim2.new(0, 5, 0, 48)
+slideStatus.BackgroundTransparency = 1
+slideStatus.Text = "● READY"
+slideStatus.Font = Enum.Font.GothamBold
+slideStatus.TextSize = 7
+slideStatus.TextColor3 = Color3.fromRGB(100, 120, 145)
+slideStatus.TextXAlignment = Enum.TextXAlignment.Left
+slideStatus.ZIndex = 5
+slideStatus.Parent = slideFrame
+
+
+--==============================================================
+-- VARIABLES & LOGIC
 --==============================================================
 
 local speedEnabled = false
 local autoJumpEnabled = false
-local slideEnabled = false
+local InfiniteSlideEnabled = false
+local slideMenuOpened = false
 
 local speed = -8
 local jumpInterval = 0.1
 
---==============================================================
--- AUTO JUMP LOGIC
---==============================================================
+-- Character Handler
+local CurrentCharacter = nil
+local RootPart = nil
+local Humanoid = nil
 
+local function SetupCharacter(char)
+    CurrentCharacter = char
+    RootPart = char:WaitForChild("HumanoidRootPart", 5)
+    Humanoid = char:WaitForChild("Humanoid", 5)
+end
+
+if LP.Character then
+    SetupCharacter(LP.Character)
+end
+
+LP.CharacterAdded:Connect(function(char)
+    SetupCharacter(char)
+    task.wait(0.5)
+    if autoJumpEnabled then
+        setupAutoJump(char)
+    end
+end)
+
+-- Auto Jump Logic
 local function setupAutoJump(character)
-    local humanoid = character:WaitForChild("Humanoid")
-    
+    local hum = character:WaitForChild("Humanoid", 5)
     task.spawn(function()
         while character.Parent and autoJumpEnabled do
             task.wait(jumpInterval)
-            if humanoid and humanoid.Health > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
-                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            if hum and hum.Health > 0 and hum.FloorMaterial ~= Enum.Material.Air then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
             end
         end
     end)
 end
 
---==============================================================
--- SPEED INPUT
---==============================================================
-
+-- Speed Input
 box.FocusLost:Connect(function()
     local n = tonumber(box.Text)
     if n then
@@ -256,20 +352,14 @@ box.FocusLost:Connect(function()
     end
 end)
 
---==============================================================
--- SPEED TOGGLE
---==============================================================
-
+-- Speed Toggle
 speedToggle.MouseButton1Click:Connect(function()
     speedEnabled = not speedEnabled
-
     if speedEnabled then
         speedToggle.Text = "SPEED ON"
         speedToggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
         speedToggle.TextColor3 = Color3.fromRGB(235,245,255)
         speedStroke.Color = Color3.fromRGB(80,180,255)
-        stroke.Color = Color3.fromRGB(70,170,255)
-        glow.ImageTransparency = 0.55
         status.Text = "● SPEED ACTIVE"
         status.TextColor3 = Color3.fromRGB(80,190,255)
     else
@@ -279,18 +369,12 @@ speedToggle.MouseButton1Click:Connect(function()
         speedStroke.Color = Color3.fromRGB(70,90,120)
         status.Text = "● READY"
         status.TextColor3 = Color3.fromRGB(100,120,145)
-        stroke.Color = Color3.fromRGB(80,150,255)
-        glow.ImageTransparency = 0.72
     end
 end)
 
---==============================================================
--- AUTO JUMP TOGGLE
---==============================================================
-
+-- Auto Jump Toggle
 jumpToggle.MouseButton1Click:Connect(function()
     autoJumpEnabled = not autoJumpEnabled
-
     if autoJumpEnabled then
         jumpToggle.Text = "AUTO JUMP ON"
         jumpToggle.BackgroundColor3 = Color3.fromRGB(30,100,70)
@@ -298,7 +382,6 @@ jumpToggle.MouseButton1Click:Connect(function()
         jumpStroke.Color = Color3.fromRGB(70,220,150)
         status.Text = "● AUTO JUMP"
         status.TextColor3 = Color3.fromRGB(80,220,160)
-
         if LP.Character then
             setupAutoJump(LP.Character)
         end
@@ -312,127 +395,107 @@ jumpToggle.MouseButton1Click:Connect(function()
     end
 end)
 
---==============================================================
--- INFINITE SLIDE TOGGLE
---==============================================================
+-- Nút mở/đóng Menu Phụ Slide
+slideMenuToggle.MouseButton1Click:Connect(function()
+    slideMenuOpened = not slideMenuOpened
+    slideGui.Enabled = slideMenuOpened
 
-slideToggle.MouseButton1Click:Connect(function()
-    slideEnabled = not slideEnabled
-
-    if slideEnabled then
-        slideToggle.Text = "INF SLIDE ON"
-        slideToggle.BackgroundColor3 = Color3.fromRGB(150,80,30)
-        slideToggle.TextColor3 = Color3.fromRGB(255,235,220)
-        slideStroke.Color = Color3.fromRGB(255,150,80)
-        status.Text = "● INF SLIDE ACTIVE"
-        status.TextColor3 = Color3.fromRGB(255,160,80)
-
-        -- Thực thi loadstring Infinite Slide
-        pcall(function()
-            loadstring(game:HttpGet('https://raw.githubusercontent.com/catwljz/rpzz/refs/heads/main/infinity-slide.txt'))()
-        end)
+    if slideMenuOpened then
+        slideMenuToggle.Text = "CLOSE SLIDE"
+        slideMenuToggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
+        slideMenuToggle.TextColor3 = Color3.fromRGB(235,245,255)
+        slideMenuStroke.Color = Color3.fromRGB(80,180,255)
     else
-        slideToggle.Text = "INF SLIDE OFF"
-        slideToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        slideToggle.TextColor3 = Color3.fromRGB(170,180,200)
-        slideStroke.Color = Color3.fromRGB(70,90,120)
-        status.Text = "● READY"
-        status.TextColor3 = Color3.fromRGB(100,120,145)
+        slideMenuToggle.Text = "SLIDE MENU"
+        slideMenuToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
+        slideMenuToggle.TextColor3 = Color3.fromRGB(170,180,200)
+        slideMenuStroke.Color = Color3.fromRGB(70,90,120)
     end
 end)
 
---==============================================================
--- SPEED LOOP
---==============================================================
+-- Infinite Slide Toggle (Bên menu phụ)
+slideToggle.MouseButton1Click:Connect(function()
+    InfiniteSlideEnabled = not InfiniteSlideEnabled
+    if InfiniteSlideEnabled then
+        slideToggle.Text = "SLIDE ON"
+        slideToggle.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+        slideToggle.TextColor3 = Color3.fromRGB(220, 255, 240)
+        slideBtnStroke.Color = Color3.fromRGB(70, 220, 150)
+        slideStatus.Text = "● SLIDE ACTIVE"
+        slideStatus.TextColor3 = Color3.fromRGB(80, 220, 160)
+    else
+        slideToggle.Text = "SLIDE OFF"
+        slideToggle.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
+        slideToggle.TextColor3 = Color3.fromRGB(170, 180, 200)
+        slideBtnStroke.Color = Color3.fromRGB(70, 90, 120)
+        slideStatus.Text = "● READY"
+        slideStatus.TextColor3 = Color3.fromRGB(100, 120, 145)
+    end
+end)
+
+-- Speed Loop
+RunService.RenderStepped:Connect(function()
+    if speedEnabled then
+        local char = LP.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hrp and hum and hum.MoveDirection.Magnitude > 0 then
+                hrp.Velocity = Vector3.new(
+                    hum.MoveDirection.X * speed * 10,
+                    hrp.Velocity.Y,
+                    hum.MoveDirection.Z * speed * 10
+                )
+            end
+        end
+    end
+end)
+
+-- Infinite Slide Core Loop
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 
 RunService.RenderStepped:Connect(function()
-    if not speedEnabled then
+    if not InfiniteSlideEnabled then
         return
     end
 
-    local char = LP.Character
-    if not char then
+    if not CurrentCharacter or not RootPart or not Humanoid then
         return
     end
 
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-
-    if hrp and hum and hum.MoveDirection.Magnitude > 0 then
-        hrp.Velocity = Vector3.new(
-            hum.MoveDirection.X * speed * 10,
-            hrp.Velocity.Y,
-            hum.MoveDirection.Z * speed * 10
-        )
+    if Humanoid.Health <= 0 then
+        return
     end
+
+    pcall(function()
+        local currentVel = RootPart.AssemblyLinearVelocity
+        local horizontalVel = Vector3.new(currentVel.X, 0, currentVel.Z)
+
+        if horizontalVel.Magnitude > 5 then
+            local currentCFrame = RootPart.CFrame
+            raycastParams.FilterDescendantsInstances = {CurrentCharacter}
+
+            local raycastResult = Workspace:Raycast(
+                currentCFrame.Position,
+                Vector3.new(0, -4, 0),
+                raycastParams
+            )
+
+            if raycastResult then
+                local targetY = raycastResult.Position.Y + 3 + CONFIG.HoverOffset
+                RootPart.CFrame = CFrame.new(
+                    currentCFrame.X,
+                    targetY,
+                    currentCFrame.Z
+                ) * currentCFrame.Rotation
+            end
+
+            RootPart.AssemblyLinearVelocity = Vector3.new(
+                horizontalVel.X,
+                currentVel.Y,
+                horizontalVel.Z
+            )
+        end
+    end)
 end)
-
---==============================================================
--- RESPAWN SUPPORT
---==============================================================
-
-LP.CharacterAdded:Connect(function(newChar)
-    task.wait(0.5)
-
-    if autoJumpEnabled then
-        setupAutoJump(newChar)
-    end
-end)
--- =============================================================================
--- ZYNTRIX - AUTO LOAD & LOCK FIXED POSITIONS (NO UI, NO COPY)
--- =============================================================================
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-
--- Tọa độ cố định bạn đã cung cấp
-local carryFixedPos = UDim2.new(0.699999988, 169, 0.400000006, 7)
-local healFixedPos = UDim2.new(0.300000012, 359, 0.400000006, 6)
-local uncarryFixedPos = UDim2.new(0.5, 224, 0.670000017, -109)
-
--- Hàm tìm kiếm đường dẫn UI an toàn
-local function getIcons()
-	local pGui = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pGui then return nil, nil, nil end
-	local gameFolder = pGui:FindFirstChild("Game")
-	if not gameFolder then return nil, nil, nil end
-	local hud = gameFolder:FindFirstChild("HUD")
-	if not hud then return nil, nil, nil end
-	local mobile = hud:FindFirstChild("Mobile")
-	if not mobile then return nil, nil, nil end
-	local center = mobile:FindFirstChild("Center")
-	if not center then return nil, nil, nil end
-	local interact1 = center:FindFirstChild("Interact")
-	if not interact1 then return nil, nil, nil end
-	local interact2 = interact1:FindFirstChild("Interact")
-	if not interact2 then return nil, nil, nil end
-	
-	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon"), interact2:FindFirstChild("UncarryIcon")
-end
-
--- Vòng lặp tự động khóa và ép chặt tọa độ ngay khi bật script, chống mất khi chết/hồi sinh
-RunService.RenderStepped:Connect(function()
-	pcall(function()
-		local carryIcon, healIcon, uncarryIcon = getIcons()
-		
-		if carryIcon then
-			carryIcon.Visible = true
-			carryIcon.Active = true
-			carryIcon.Position = carryFixedPos
-		end
-		
-		if healIcon then
-			healIcon.Visible = true
-			healIcon.Active = true
-			healIcon.Position = healFixedPos
-		end
-		
-		if uncarryIcon then
-			uncarryIcon.Visible = true
-			uncarryIcon.Active = true
-			uncarryIcon.Position = uncarryFixedPos
-		end
-	end)
-end)
-
