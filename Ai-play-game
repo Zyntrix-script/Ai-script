@@ -746,8 +746,9 @@ tpBtn.MouseButton1Click:Connect(function()
 
     busy = false
 
-end)-- =============================================================================
--- ZYNTRIX - AUTO LOAD & LOCK POSITIONS FOR MOBILE (3 BUTTONS)
+end)
+-- =============================================================================
+-- ZYNTRIX - AUTO LOAD & LOCK POSITIONS (CARRY & HEAL)
 -- =============================================================================
 
 local Players = game:GetService("Players")
@@ -755,37 +756,35 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Cấu hình tọa độ cố định sẵn (đã được khóa cứng ngay từ đầu)
+-- Cấu hình tọa độ cố định sẵn
 local carryCustomPos = UDim2.new(0.699999988, 223, 0.400000006, -15)
 local healCustomPos = UDim2.new(0.300000012, 227, 0.400000006, 48)
-local uncarryCustomPos = UDim2.new(0.5, 0, 0.4, 0) -- Dùng tạm vị trí giữa nếu chưa có định nghĩa riêng
-
 local targetSize = UDim2.new(0, 100, 0, 100)
 
 -- Hàm tìm kiếm đường dẫn UI an toàn
 local function getIcons()
 	local pGui = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pGui then return nil, nil, nil end
+	if not pGui then return nil, nil end
 	local gameFolder = pGui:FindFirstChild("Game")
-	if not gameFolder then return nil, nil, nil end
+	if not gameFolder then return nil, nil end
 	local hud = gameFolder:FindFirstChild("HUD")
-	if not hud then return nil, nil, nil end
+	if not hud then return nil, nil end
 	local mobile = hud:FindFirstChild("Mobile")
-	if not mobile then return nil, nil, nil end
+	if not mobile then return nil, nil end
 	local center = mobile:FindFirstChild("Center")
-	if not center then return nil, nil, nil end
+	if not center then return nil, nil end
 	local interact1 = center:FindFirstChild("Interact")
-	if not interact1 then return nil, nil, nil end
+	if not interact1 then return nil, nil end
 	local interact2 = interact1:FindFirstChild("Interact")
-	if not interact2 then return nil, nil, nil end
+	if not interact2 then return nil, nil end
 	
-	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon"), interact2:FindFirstChild("UncarryIcon")
+	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon")
 end
 
--- Vòng lặp tự động áp dụng tọa độ, kích thước và chống vô hiệu hóa liên tục
+-- Vòng lặp tự động áp dụng tọa độ, kích thước và chống vô hiệu hóa ngay khi bật script
 RunService.RenderStepped:Connect(function()
 	pcall(function()
-		local carryIcon, healIcon, uncarryIcon = getIcons()
+		local carryIcon, healIcon = getIcons()
 		
 		if carryIcon then
 			carryIcon.Visible = true
@@ -800,20 +799,13 @@ RunService.RenderStepped:Connect(function()
 			healIcon.Position = healCustomPos
 			healIcon.Size = targetSize
 		end
-		
-		if uncarryIcon then
-			uncarryIcon.Visible = true
-			uncarryIcon.Active = true
-			uncarryIcon.Position = uncarryCustomPos
-			uncarryIcon.Size = targetSize
-		end
 	end)
 end)
 
 pcall(function()
 	StarterGui:SetCore("SendNotification", {
-		Title = "Zyntrix Auto-Locked",
-		Text = "Đã tải cấu hình và khóa cứng tọa độ cho 3 nút!",
+		Title = "Zyntrix Auto-Lock",
+		Text = "Đã tự động khóa và load tọa độ chuẩn cho nút Bế & Cứu!",
 		Duration = 4
 	})
 end)
