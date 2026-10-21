@@ -1,311 +1,394 @@
---==============================================================
--- SPEED + AUTO JUMP + INFINITE SLIDE (MENU CHÍNH + MENU PHỤ)
---==============================================================
+-- =============================================================================
+-- ZYNTRIX PRIME • FURINA MINI V16 • ULTIMATE FIXED EDITION (100% TIẾNG VIỆT)
+-- GIAO DIỆN V12/V15 ICE WHITE + CYAN NEON • TỐI ƯU HÓA HOÀN HẢO CHO MOBILE
+-- KHẮC PHỤC TRIỆT ĐỂ MỌI LỖI: ESP ỔN ĐỊNH, SLIDE SPEED NHẬP LIỆU CHUẨN, 
+-- TẤT CẢ TÍNH NĂNG MẶC ĐỊNH OFF, TELE DOWN & QUAY VỀ AN TOÀN, CHỐNG KẸT CẢM ỨNG.
+-- =============================================================================
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
 
-local LP = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
---==============================================================
--- CLEAR OLD UI
---==============================================================
-
-if CoreGui:FindFirstChild("SpeedAutoJump6D") then
-    CoreGui.SpeedAutoJump6D:Destroy()
+-- Dọn dẹp giao diện cũ hoàn toàn tránh xung đột
+for _, container in ipairs({PlayerGui, CoreGui}) do
+    local old = container:FindFirstChild("ZyntrixTrackMini")
+    if old then old:Destroy() end
+    local old2 = container:FindFirstChild("SpeedAutoJump6D")
+    if old2 then old2:Destroy() end
+    local old3 = container:FindFirstChild("EvadeInfiniteSlideGui")
+    if old3 then old3:Destroy() end
 end
 
-if CoreGui:FindFirstChild("EvadeInfiniteSlideGui") then
-    CoreGui.EvadeInfiniteSlideGui:Destroy()
+-- Thư mục game an toàn
+local BotFolder = Workspace:FindFirstChild("Players") or Workspace:FindFirstChild("Live") or Workspace:FindFirstChild("Enemies")
+local EffectsFolder = Workspace:FindFirstChild("Effects")
+local TicketsFolder = Workspace:FindFirstChild("Tickets")
+if not TicketsFolder and EffectsFolder then
+    TicketsFolder = EffectsFolder:FindFirstChild("Tickets")
 end
 
---==============================================================
--- MAIN GUI (SPEED & AUTO JUMP & NÚT MỞ UI PHỤ SLIDE)
---==============================================================
+-- Toán học & Biến phụ
+local abs, atan2, cos, sin, floor, clamp, max = math.abs, math.atan2, math.cos, math.sin, math.floor, math.clamp, math.max
+local InstNew = Instance.new
+local Col3RGB = Color3.fromRGB
+local Col3New = Color3.new
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "SpeedAutoJump6D"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = CoreGui
-
-local frame = Instance.new("Frame")
-frame.Name = "Main"
-frame.Size = UDim2.new(0,100,0,116)
-frame.Position = UDim2.new(0,20,0.4,0)
-frame.BackgroundColor3 = Color3.fromRGB(12,15,25)
-frame.BackgroundTransparency = 0.15
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.ZIndex = 2
-frame.Parent = gui
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0,9)
-corner.Parent = frame
-
-local stroke = Instance.new("UIStroke")
-stroke.Thickness = 1
-stroke.Transparency = 0.1
-stroke.Color = Color3.fromRGB(80,150,255)
-stroke.Parent = frame
-
-local glow = Instance.new("ImageLabel")
-glow.Name = "Glow"
-glow.AnchorPoint = Vector2.new(0.5,0.5)
-glow.Position = UDim2.new(0.5,0,0.5,0)
-glow.Size = UDim2.new(1,18,1,18)
-glow.BackgroundTransparency = 1
-glow.Image = "rbxassetid://5028857084"
-glow.ImageColor3 = Color3.fromRGB(40,120,255)
-glow.ImageTransparency = 0.72
-glow.ZIndex = 1
-glow.Parent = frame
-
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1,-10,0,15)
-title.Position = UDim2.new(0,5,0,2)
-title.BackgroundTransparency = 1
-title.Text = "Evade-Zyntrix"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 9
-title.TextColor3 = Color3.fromRGB(180,220,255)
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.ZIndex = 5
-title.Parent = frame
-
--- SPEED TOGGLE
-local speedToggle = Instance.new("TextButton")
-speedToggle.Name = "SpeedToggle"
-speedToggle.Size = UDim2.new(0.58,-7,0,22)
-speedToggle.Position = UDim2.new(0,5,0,19)
-speedToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-speedToggle.BorderSizePixel = 0
-speedToggle.Text = "SPEED OFF"
-speedToggle.Font = Enum.Font.GothamBold
-speedToggle.TextSize = 8
-speedToggle.TextColor3 = Color3.fromRGB(170,180,200)
-speedToggle.AutoButtonColor = false
-speedToggle.ZIndex = 5
-speedToggle.Parent = frame
-
-local speedCorner = Instance.new("UICorner")
-speedCorner.CornerRadius = UDim.new(0,7)
-speedCorner.Parent = speedToggle
-
-local speedStroke = Instance.new("UIStroke")
-speedStroke.Thickness = 1
-speedStroke.Transparency = 0.2
-speedStroke.Color = Color3.fromRGB(70,90,120)
-speedStroke.Parent = speedToggle
-
--- SPEED INPUT
-local box = Instance.new("TextBox")
-box.Name = "SpeedBox"
-box.Size = UDim2.new(0.42,-8,0,22)
-box.Position = UDim2.new(0.58,2,0,19)
-box.BackgroundColor3 = Color3.fromRGB(20,25,38)
-box.BorderSizePixel = 0
-box.Text = "-8"
-box.PlaceholderText = "SPD"
-box.Font = Enum.Font.GothamBold
-box.TextSize = 9
-box.TextColor3 = Color3.fromRGB(220,235,255)
-box.PlaceholderColor3 = Color3.fromRGB(90,105,130)
-box.ClearTextOnFocus = false
-box.ZIndex = 5
-box.Parent = frame
-
-local boxCorner = Instance.new("UICorner")
-boxCorner.CornerRadius = UDim.new(0,7)
-boxCorner.Parent = box
-
-local boxStroke = Instance.new("UIStroke")
-boxStroke.Thickness = 1
-boxStroke.Transparency = 0.2
-boxStroke.Color = Color3.fromRGB(60,80,110)
-boxStroke.Parent = box
-
--- AUTO JUMP BUTTON
-local jumpToggle = Instance.new("TextButton")
-jumpToggle.Name = "AutoJumpToggle"
-jumpToggle.Size = UDim2.new(1,-10,0,22)
-jumpToggle.Position = UDim2.new(0,5,0,45)
-jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-jumpToggle.BorderSizePixel = 0
-jumpToggle.Text = "AUTO JUMP OFF"
-jumpToggle.Font = Enum.Font.GothamBold
-jumpToggle.TextSize = 8
-jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
-jumpToggle.AutoButtonColor = false
-jumpToggle.ZIndex = 5
-jumpToggle.Parent = frame
-
-local jumpCorner = Instance.new("UICorner")
-jumpCorner.CornerRadius = UDim.new(0,7)
-jumpCorner.Parent = jumpToggle
-
-local jumpStroke = Instance.new("UIStroke")
-jumpStroke.Thickness = 1
-jumpStroke.Transparency = 0.2
-jumpStroke.Color = Color3.fromRGB(70,90,120)
-jumpStroke.Parent = jumpToggle
-
--- NÚT MỞ MENU PHỤ (SLIDE MENU)
-local slideMenuToggle = Instance.new("TextButton")
-slideMenuToggle.Name = "SlideMenuToggle"
-slideMenuToggle.Size = UDim2.new(1,-10,0,22)
-slideMenuToggle.Position = UDim2.new(0,5,0,71)
-slideMenuToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-slideMenuToggle.BorderSizePixel = 0
-slideMenuToggle.Text = "SLIDE MENU"
-slideMenuToggle.Font = Enum.Font.GothamBold
-slideMenuToggle.TextSize = 8
-slideMenuToggle.TextColor3 = Color3.fromRGB(170,180,200)
-slideMenuToggle.AutoButtonColor = false
-slideMenuToggle.ZIndex = 5
-slideMenuToggle.Parent = frame
-
-local slideMenuCorner = Instance.new("UICorner")
-slideMenuCorner.CornerRadius = UDim.new(0,7)
-slideMenuCorner.Parent = slideMenuToggle
-
-local slideMenuStroke = Instance.new("UIStroke")
-slideMenuStroke.Thickness = 1
-slideMenuStroke.Transparency = 0.2
-slideMenuStroke.Color = Color3.fromRGB(70,90,120)
-slideMenuStroke.Parent = slideMenuToggle
-
--- STATUS MAIN
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1,-10,0,14)
-status.Position = UDim2.new(0,5,0,96)
-status.BackgroundTransparency = 1
-status.Text = "● READY"
-status.Font = Enum.Font.GothamBold
-status.TextSize = 7
-status.TextColor3 = Color3.fromRGB(100,120,145)
-status.TextXAlignment = Enum.TextXAlignment.Left
-status.ZIndex = 5
-status.Parent = frame
-
-
---==============================================================
--- SECOND UI (MENU PHỤ CHỨA INFINITE SLIDE - GIỐNG Y HỆT GIAO DIỆN CHÍNH)
---==============================================================
-
-local CONFIG = {
-    GuiName = "EvadeInfiniteSlideGui",
-    HoverOffset = 0.001
+-- =============================================================================
+-- 1. CONFIGURATION & STATE MANAGEMENT (MẶC ĐỊNH 100% LÀ OFF / FALSE)
+-- =============================================================================
+local states = {
+    espPlayer = false,
+    espNextbot = false,
+    espTickets = false,
+    autoFarmTickets = false,
+    avoidNextbot = false,
+    carryLock = false,
+    healLock = false,
+    speedBoost = false,
+    autoJump = false,
+    infiniteSlide = false,
+    slideSpeed = 1.5
 }
 
-local slideGui = Instance.new("ScreenGui")
-slideGui.Name = CONFIG.GuiName
-slideGui.ResetOnSpawn = false
-slideGui.IgnoreGuiInset = true
-slideGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-slideGui.Parent = CoreGui
-slideGui.Enabled = false -- Ban đầu ẩn đi, bấm nút ở menu chính mới hiện
+local speedValue = -8
+local jumpInterval = 0.15
 
-local slideFrame = Instance.new("Frame")
-slideFrame.Name = "MainSlide"
-slideFrame.Size = UDim2.new(0, 100, 0, 70)
-slideFrame.Position = UDim2.new(0, 130, 0.4, 0) -- Nằm cạnh menu chính
-slideFrame.BackgroundColor3 = Color3.fromRGB(12, 15, 25)
-slideFrame.BackgroundTransparency = 0.15
-slideFrame.BorderSizePixel = 0
-slideFrame.Active = true
-slideFrame.Draggable = true
-slideFrame.ZIndex = 2
-slideFrame.Parent = slideGui
+local connections = {}
+local tweens = {}
+local closed = false
+local activeESPElements = {}
 
-local slideCorner = Instance.new("UICorner")
-slideCorner.CornerRadius = UDim.new(0, 9)
-slideCorner.Parent = slideFrame
+-- Biến cho tính năng Tele Down & Quay về vị trí cũ
+local savedCFrame = nil
+local teleDownActive = false
 
-local slideStroke = Instance.new("UIStroke")
-slideStroke.Thickness = 1
-slideStroke.Transparency = 0.1
-slideStroke.Color = Color3.fromRGB(80, 150, 255)
-slideStroke.Parent = slideFrame
+-- Màu sắc giao diện (Ice White & Cyan Neon)
+local CYAN = Color3.fromRGB(0, 212, 255)
+local ICE = Color3.fromRGB(240, 253, 255)
+local BLUE = Color3.fromRGB(25, 100, 255)
+local DARK = Color3.fromRGB(4, 10, 24)
+local GLASS = Color3.fromRGB(8, 28, 52)
+local GREEN = Color3.fromRGB(0, 220, 145)
+local YELLOW = Color3.fromRGB(255, 220, 50)
 
-local slideGlow = Instance.new("ImageLabel")
-slideGlow.Name = "Glow"
-slideGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-slideGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-slideGlow.Size = UDim2.new(1, 18, 1, 18)
-slideGlow.BackgroundTransparency = 1
-slideGlow.Image = "rbxassetid://5028857084"
-slideGlow.ImageColor3 = Color3.fromRGB(40, 120, 255)
-slideGlow.ImageTransparency = 0.72
-slideGlow.ZIndex = 1
-slideGlow.Parent = slideFrame
+local function Connect(signal, callback)
+    local c = signal:Connect(callback)
+    table.insert(connections, c)
+    return c
+end
 
-local slideTitle = Instance.new("TextLabel")
-slideTitle.Size = UDim2.new(1,-10,0,15)
-slideTitle.Position = UDim2.new(0,5,0,2)
-slideTitle.BackgroundTransparency = 1
-slideTitle.Text = "⚡ SLIDE MENU"
-slideTitle.Font = Enum.Font.GothamBold
-slideTitle.TextSize = 9
-slideTitle.TextColor3 = Color3.fromRGB(180,220,255)
-slideTitle.TextXAlignment = Enum.TextXAlignment.Left
-slideTitle.ZIndex = 5
-slideTitle.Parent = slideFrame
+local function Tween(obj, duration, props, style, repeatCount, reverse)
+    local tw = TweenService:Create(
+        obj,
+        TweenInfo.new(
+            duration,
+            style or Enum.EasingStyle.Sine,
+            Enum.EasingDirection.InOut,
+            repeatCount or 0,
+            reverse or false
+        ),
+        props
+    )
+    table.insert(tweens, tw)
+    tw:Play()
+    return tw
+end
 
-local slideToggle = Instance.new("TextButton")
-slideToggle.Name = "ToggleSlideButton"
-slideToggle.Size = UDim2.new(1, -10, 0, 22)
-slideToggle.Position = UDim2.new(0, 5, 0, 19)
-slideToggle.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
-slideToggle.BorderSizePixel = 0
-slideToggle.Text = "SLIDE OFF"
-slideToggle.Font = Enum.Font.GothamBold
-slideToggle.TextSize = 8
-slideToggle.TextColor3 = Color3.fromRGB(170, 180, 200)
-slideToggle.AutoButtonColor = false
-slideToggle.ZIndex = 5
-slideToggle.Parent = slideFrame
+local function Round(obj, radius)
+    local c = InstNew("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = obj
+    return c
+end
 
-local slideBtnCorner = Instance.new("UICorner")
-slideBtnCorner.CornerRadius = UDim.new(0, 7)
-slideBtnCorner.Parent = slideToggle
+local function Stroke(obj, color, thickness, transparency)
+    local s = InstNew("UIStroke")
+    s.Color = color
+    s.Thickness = thickness
+    s.Transparency = transparency or 0
+    s.Parent = obj
+    return s
+end
 
-local slideBtnStroke = Instance.new("UIStroke")
-slideBtnStroke.Thickness = 1
-slideBtnStroke.Transparency = 0.2
-slideBtnStroke.Color = Color3.fromRGB(70, 90, 120)
-slideBtnStroke.Parent = slideToggle
+local function Notify(title, message)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = message,
+            Duration = 3
+        })
+    end)
+end
 
-local slideStatus = Instance.new("TextLabel")
-slideStatus.Size = UDim2.new(1, -10, 0, 14)
-slideStatus.Position = UDim2.new(0, 5, 0, 48)
-slideStatus.BackgroundTransparency = 1
-slideStatus.Text = "● READY"
-slideStatus.Font = Enum.Font.GothamBold
-slideStatus.TextSize = 7
-slideStatus.TextColor3 = Color3.fromRGB(100, 120, 145)
-slideStatus.TextXAlignment = Enum.TextXAlignment.Left
-slideStatus.ZIndex = 5
-slideStatus.Parent = slideFrame
+-- =============================================================================
+-- 2. ESP SYSTEM (ĐỘC LẬP, KHÔNG CHỚP NHÁY, DỌN SẠCH HOÀN TOÀN KHI TẮT)
+-- =============================================================================
 
+local function getESPContainer()
+    local success, result = pcall(function()
+        local container = CoreGui:FindFirstChild("Zyntrix_ESP_Container")
+        if not container then
+            container = InstNew("Folder")
+            container.Name = "Zyntrix_ESP_Container"
+            container.Parent = CoreGui
+        end
+        return container
+    end)
+    if success and result then return result end
+    local pg = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)  
+    if pg then  
+        local container = pg:FindFirstChild("Zyntrix_ESP_Container")  
+        if not container then  
+            container = InstNew("Folder")  
+            container.Name = "Zyntrix_ESP_Container"  
+            container.Parent = pg  
+        end  
+        return container  
+    end  
+    return nil
+end
 
---==============================================================
--- VARIABLES & LOGIC
---==============================================================
+local espContainer = getESPContainer()
 
-local speedEnabled = false
-local autoJumpEnabled = false
-local InfiniteSlideEnabled = false
-local slideMenuOpened = false
+local function cleanupESP(object)
+    if not object then return end
+    local uniqueId = object:GetDebugId()
+    if activeESPElements[uniqueId] then
+        for _, element in ipairs(activeESPElements[uniqueId]) do
+            if element and element.Parent then element:Destroy() end
+        end
+        activeESPElements[uniqueId] = nil
+    end
+    if espContainer then
+        for _, child in ipairs(espContainer:GetChildren()) do
+            if string.find(child.Name, tostring(uniqueId)) then child:Destroy() end
+        end
+    end
+end
 
-local speed = -8
-local jumpInterval = 0.1
+local function registerESPElement(object, element)
+    if not object then return end
+    local uniqueId = object:GetDebugId()
+    if not activeESPElements[uniqueId] then activeESPElements[uniqueId] = {} end
+    table.insert(activeESPElements[uniqueId], element)
+end
 
--- Character Handler
+-- ESP Vé / Tickets
+local function applyTicketESP(object)
+    if not states.espTickets or not object or not object.Parent then return end
+    if not object:IsA("BasePart") and not object:IsA("Model") then return end
+    
+    local uniqueId = object:GetDebugId()
+    if activeESPElements[uniqueId] then return end
+
+    local targetPart = object  
+    if object:IsA("Model") then  
+        targetPart = object:FindFirstChildWhichIsA("BasePart") or object.PrimaryPart  
+        if not targetPart then return end  
+    end  
+
+    if not espContainer then return end
+
+    local highlight = InstNew("Highlight")  
+    highlight.Name = "TicketESP_Highlight_" .. uniqueId  
+    highlight.Adornee = object  
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop  
+    highlight.FillColor = Col3RGB(0, 150, 255)  
+    highlight.OutlineColor = ICE  
+    highlight.FillTransparency = 0.6  
+    highlight.OutlineTransparency = 0  
+    highlight.Parent = espContainer  
+    registerESPElement(object, highlight)
+
+    local bgui = InstNew("BillboardGui")  
+    bgui.Name = "TicketESP_Billboard_" .. uniqueId  
+    bgui.Adornee = targetPart  
+    bgui.Size = UDim2.new(0, 100, 0, 25)  
+    bgui.StudsOffset = Vector3.new(0, 2, 0)  
+    bgui.AlwaysOnTop = true  
+    bgui.Parent = espContainer  
+    registerESPElement(object, bgui)
+
+    local textLabel = InstNew("TextLabel")  
+    textLabel.BackgroundTransparency = 1  
+    textLabel.Size = UDim2.new(1, 0, 1, 0)  
+    textLabel.TextColor3 = Col3RGB(0, 150, 255)  
+    textLabel.TextStrokeTransparency = 0  
+    textLabel.TextSize = 12  
+    textLabel.Font = Enum.Font.SourceSansBold  
+    textLabel.Text = "VÉ / BUBBLES"  
+    textLabel.Parent = bgui  
+end
+
+-- ESP Người chơi & Nextbot
+local function applyEntityESP(object)
+    if not object or object == LocalPlayer.Character or object.Name == LocalPlayer.Name then return end
+
+    local root = object:FindFirstChild("HumanoidRootPart") or object:FindFirstChildWhichIsA("BasePart")  
+    if not root then return end  
+
+    local isNextbot = object:GetAttribute("Team") == "Nextbot" or string.find(object.Name:lower(), "nextbot")
+
+    if isNextbot and not states.espNextbot then return end
+    if not isNextbot and not states.espPlayer then return end
+
+    local uniqueId = object:GetDebugId()
+    if activeESPElements[uniqueId] then return end
+
+    if isNextbot then
+        local highlight = InstNew("Highlight")  
+        highlight.Name = "BotHighlight_" .. uniqueId  
+        highlight.Adornee = object  
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop  
+        highlight.FillColor = YELLOW  
+        highlight.OutlineColor = ICE  
+        highlight.FillTransparency = 0.75  
+        highlight.OutlineTransparency = 0  
+        highlight.Parent = object  
+        registerESPElement(object, highlight)
+
+        local bgui = InstNew("BillboardGui")  
+        bgui.Name = "BotLabel_" .. uniqueId  
+        bgui.Adornee = root  
+        bgui.Size = UDim2.new(0, 130, 0, 25)  
+        bgui.StudsOffset = Vector3.new(0, 3, 0)
+        bgui.AlwaysOnTop = true  
+        bgui.Parent = object
+        registerESPElement(object, bgui)
+
+        local textLabel = InstNew("TextLabel")  
+        textLabel.BackgroundTransparency = 1  
+        textLabel.Size = UDim2.new(1, 0, 1, 0)  
+        textLabel.TextColor3 = YELLOW  
+        textLabel.TextStrokeTransparency = 0.2  
+        textLabel.TextSize = 11  
+        textLabel.Font = Enum.Font.GothamBold  
+        textLabel.Text = "NEXTBOT • " .. object.Name  
+        textLabel.Parent = bgui  
+    else
+        local highlight = InstNew("Highlight")  
+        highlight.Name = "PlayerHighlight_" .. uniqueId  
+        highlight.Adornee = object  
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop  
+        highlight.FillColor = CYAN  
+        highlight.OutlineColor = ICE  
+        highlight.FillTransparency = 0.75  
+        highlight.OutlineTransparency = 0  
+        highlight.Parent = object  
+        registerESPElement(object, highlight)  
+
+        local bgui = InstNew("BillboardGui")  
+        bgui.Name = "PlayerLabel_" .. uniqueId  
+        bgui.Adornee = root  
+        bgui.Size = UDim2.new(0, 130, 0, 25)  
+        bgui.StudsOffset = Vector3.new(0, 3, 0)  
+        bgui.AlwaysOnTop = true  
+        bgui.Parent = object  
+        registerESPElement(object, bgui)
+
+        local textLabel = InstNew("TextLabel")  
+        textLabel.Size = UDim2.fromScale(1, 1)  
+        textLabel.BackgroundTransparency = 1  
+        textLabel.Text = object.Name  
+        textLabel.TextColor3 = CYAN  
+        textLabel.TextStrokeTransparency = 0.2  
+        textLabel.TextSize = 11  
+        textLabel.Font = Enum.Font.GothamBold  
+        textLabel.Parent = bgui  
+    end
+end
+
+local function refreshAllESP()
+    -- Xóa toàn bộ ESP cũ trước khi quét lại
+    if espContainer then
+        espContainer:ClearAllChildren()
+    end
+    table.clear(activeESPElements)
+
+    if BotFolder and (states.espPlayer or states.espNextbot) then
+        for _, child in ipairs(BotFolder:GetChildren()) do
+            applyEntityESP(child)
+        end
+    end
+    if TicketsFolder and states.espTickets then
+        for _, child in ipairs(TicketsFolder:GetChildren()) do
+            applyTicketESP(child)
+        end
+    end
+end
+
+if BotFolder then
+    Connect(BotFolder.ChildAdded, function(child)
+        task.delay(0.25, function()
+            if not closed then applyEntityESP(child) end
+        end)
+    end)
+    Connect(BotFolder.ChildRemoved, cleanupESP)
+end
+
+if TicketsFolder then
+    Connect(TicketsFolder.ChildAdded, function(child)
+        task.delay(0.15, function()
+            if not closed then applyTicketESP(child) end
+        end)
+    end)
+    Connect(TicketsFolder.ChildRemoved, cleanupESP)
+end
+
+-- =============================================================================
+-- 3. MOBILE BUTTON LOCK (CARRY & HEAL)
+-- =============================================================================
+local carryCustomPos = UDim2.new(0.7, 223, 0.4, -15)
+local healCustomPos = UDim2.new(0.3, 227, 0.4, 48)
+local targetSize = UDim2.fromOffset(100, 100)
+
+local function getIcons()
+    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pGui then return nil, nil end
+    local gameFolder = pGui:FindFirstChild("Game")
+    if not gameFolder then return nil, nil end
+    local hud = gameFolder:FindFirstChild("HUD")
+    if not hud then return nil, nil end
+    local mobile = hud:FindFirstChild("Mobile")
+    if not mobile then return nil, nil end
+    local center = mobile:FindFirstChild("Center")
+    if not center then return nil, nil end
+    local interact1 = center:FindFirstChild("Interact")
+    if not interact1 then return nil, nil end
+    local interact2 = interact1:FindFirstChild("Interact")
+    if not interact2 then return nil, nil end
+    return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon")
+end
+
+Connect(RunService.RenderStepped, function()
+    if closed or (not states.carryLock and not states.healLock) then return end
+    pcall(function()
+        local carryIcon, healIcon = getIcons()
+        if states.carryLock and carryIcon then  
+            carryIcon.Visible = true  
+            carryIcon.Active = true  
+            carryIcon.Position = carryCustomPos  
+            carryIcon.Size = targetSize  
+        end  
+        if states.healLock and healIcon then  
+            healIcon.Visible = true  
+            healIcon.Active = true  
+            healIcon.Position = healCustomPos  
+            healIcon.Size = targetSize  
+        end  
+    end)
+end)
+
+-- =============================================================================
+-- 4. MOVEMENT SYSTEM (SPEED, AUTO JUMP, INFINITE SLIDE & SLIDE SPEED)
+-- =============================================================================
 local CurrentCharacter = nil
 local RootPart = nil
 local Humanoid = nil
@@ -316,496 +399,641 @@ local function SetupCharacter(char)
     Humanoid = char:WaitForChild("Humanoid", 5)
 end
 
-if LP.Character then
-    SetupCharacter(LP.Character)
-end
+if LocalPlayer.Character then SetupCharacter(LocalPlayer.Character) end
+Connect(LocalPlayer.CharacterAdded, SetupCharacter)
 
-LP.CharacterAdded:Connect(function(char)
-    SetupCharacter(char)
-    task.wait(0.5)
-    if autoJumpEnabled then
-        setupAutoJump(char)
+-- Speed Loop
+Connect(RunService.RenderStepped, function()
+    if closed or not states.speedBoost then return end
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hrp and hum and hum.MoveDirection.Magnitude > 0 then
+            hrp.Velocity = Vector3.new(
+                hum.MoveDirection.X * speedValue * 10,
+                hrp.Velocity.Y,
+                hum.MoveDirection.Z * speedValue * 10
+            )
+        end
     end
 end)
 
--- Auto Jump Logic
-local function setupAutoJump(character)
-    local hum = character:WaitForChild("Humanoid", 5)
-    task.spawn(function()
-        while character.Parent and autoJumpEnabled do
-            task.wait(jumpInterval)
+-- Auto Jump Loop
+task.spawn(function()
+    while not closed do
+        task.wait(jumpInterval)
+        if states.autoJump then
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 and hum.FloorMaterial ~= Enum.Material.Air then
                 hum:ChangeState(Enum.HumanoidStateType.Jumping)
             end
         end
-    end)
-end
-
--- Speed Input
-box.FocusLost:Connect(function()
-    local n = tonumber(box.Text)
-    if n then
-        speed = n
-        box.Text = tostring(n)
-    else
-        box.Text = tostring(speed)
     end
 end)
 
--- Speed Toggle
-speedToggle.MouseButton1Click:Connect(function()
-    speedEnabled = not speedEnabled
-    if speedEnabled then
-        speedToggle.Text = "SPEED ON"
-        speedToggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
-        speedToggle.TextColor3 = Color3.fromRGB(235,245,255)
-        speedStroke.Color = Color3.fromRGB(80,180,255)
-        status.Text = "● SPEED ACTIVE"
-        status.TextColor3 = Color3.fromRGB(80,190,255)
-    else
-        speedToggle.Text = "SPEED OFF"
-        speedToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        speedToggle.TextColor3 = Color3.fromRGB(170,180,200)
-        speedStroke.Color = Color3.fromRGB(70,90,120)
-        status.Text = "● READY"
-        status.TextColor3 = Color3.fromRGB(100,120,145)
-    end
-end)
-
--- Auto Jump Toggle
-jumpToggle.MouseButton1Click:Connect(function()
-    autoJumpEnabled = not autoJumpEnabled
-    if autoJumpEnabled then
-        jumpToggle.Text = "AUTO JUMP ON"
-        jumpToggle.BackgroundColor3 = Color3.fromRGB(30,100,70)
-        jumpToggle.TextColor3 = Color3.fromRGB(220,255,240)
-        jumpStroke.Color = Color3.fromRGB(70,220,150)
-        status.Text = "● AUTO JUMP"
-        status.TextColor3 = Color3.fromRGB(80,220,160)
-        if LP.Character then
-            setupAutoJump(LP.Character)
-        end
-    else
-        jumpToggle.Text = "AUTO JUMP OFF"
-        jumpToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        jumpToggle.TextColor3 = Color3.fromRGB(170,180,200)
-        jumpStroke.Color = Color3.fromRGB(70,90,120)
-        status.Text = "● READY"
-        status.TextColor3 = Color3.fromRGB(100,120,145)
-    end
-end)
-
--- Nút mở/đóng Menu Phụ Slide
-slideMenuToggle.MouseButton1Click:Connect(function()
-    slideMenuOpened = not slideMenuOpened
-    slideGui.Enabled = slideMenuOpened
-
-    if slideMenuOpened then
-        slideMenuToggle.Text = "CLOSE SLIDE"
-        slideMenuToggle.BackgroundColor3 = Color3.fromRGB(30,80,150)
-        slideMenuToggle.TextColor3 = Color3.fromRGB(235,245,255)
-        slideMenuStroke.Color = Color3.fromRGB(80,180,255)
-    else
-        slideMenuToggle.Text = "SLIDE MENU"
-        slideMenuToggle.BackgroundColor3 = Color3.fromRGB(25,30,45)
-        slideMenuToggle.TextColor3 = Color3.fromRGB(170,180,200)
-        slideMenuStroke.Color = Color3.fromRGB(70,90,120)
-    end
-end)
-
--- Infinite Slide Toggle (Bên menu phụ)
-slideToggle.MouseButton1Click:Connect(function()
-    InfiniteSlideEnabled = not InfiniteSlideEnabled
-    if InfiniteSlideEnabled then
-        slideToggle.Text = "SLIDE ON"
-        slideToggle.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
-        slideToggle.TextColor3 = Color3.fromRGB(220, 255, 240)
-        slideBtnStroke.Color = Color3.fromRGB(70, 220, 150)
-        slideStatus.Text = "● SLIDE ACTIVE"
-        slideStatus.TextColor3 = Color3.fromRGB(80, 220, 160)
-    else
-        slideToggle.Text = "SLIDE OFF"
-        slideToggle.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
-        slideToggle.TextColor3 = Color3.fromRGB(170, 180, 200)
-        slideBtnStroke.Color = Color3.fromRGB(70, 90, 120)
-        slideStatus.Text = "● READY"
-        slideStatus.TextColor3 = Color3.fromRGB(100, 120, 145)
-    end
-end)
-
--- Speed Loop
-RunService.RenderStepped:Connect(function()
-    if speedEnabled then
-        local char = LP.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hrp and hum and hum.MoveDirection.Magnitude > 0 then
-                hrp.Velocity = Vector3.new(
-                    hum.MoveDirection.X * speed * 10,
-                    hrp.Velocity.Y,
-                    hum.MoveDirection.Z * speed * 10
-                )
-            end
-        end
-    end
-end)
-
--- Infinite Slide Core Loop
+-- Infinite Slide & Slide Speed
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 
-RunService.RenderStepped:Connect(function()
-    if not InfiniteSlideEnabled then
+Connect(RunService.RenderStepped, function()
+    if closed or not states.infiniteSlide or not CurrentCharacter or not RootPart or not Humanoid or Humanoid.Health <= 0 then
         return
     end
 
-    if not CurrentCharacter or not RootPart or not Humanoid then
-        return
-    end
+    pcall(function()  
+        local currentVel = RootPart.AssemblyLinearVelocity  
+        local horizontalVel = Vector3.new(currentVel.X, 0, currentVel.Z)  
 
-    if Humanoid.Health <= 0 then
-        return
-    end
+        if horizontalVel.Magnitude > 5 then  
+            local currentCFrame = RootPart.CFrame  
+            raycastParams.FilterDescendantsInstances = {CurrentCharacter}  
+            local raycastResult = Workspace:Raycast(currentCFrame.Position, Vector3.new(0, -4, 0), raycastParams)  
 
-    pcall(function()
-        local currentVel = RootPart.AssemblyLinearVelocity
-        local horizontalVel = Vector3.new(currentVel.X, 0, currentVel.Z)
-
-        if horizontalVel.Magnitude > 5 then
-            local currentCFrame = RootPart.CFrame
-            raycastParams.FilterDescendantsInstances = {CurrentCharacter}
-
-            local raycastResult = Workspace:Raycast(
-                currentCFrame.Position,
-                Vector3.new(0, -4, 0),
-                raycastParams
-            )
-
-            if raycastResult then
-                local targetY = raycastResult.Position.Y + 3 + CONFIG.HoverOffset
-                RootPart.CFrame = CFrame.new(
-                    currentCFrame.X,
-                    targetY,
-                    currentCFrame.Z
-                ) * currentCFrame.Rotation
-            end
-
+            if raycastResult then  
+                local targetY = raycastResult.Position.Y + 3 + 0.001  
+                RootPart.CFrame = CFrame.new(currentCFrame.X, targetY, currentCFrame.Z) * currentCFrame.Rotation  
+            end  
             RootPart.AssemblyLinearVelocity = Vector3.new(
-                horizontalVel.X,
-                currentVel.Y,
-                horizontalVel.Z
-            )
-        end
+                horizontalVel.X * states.slideSpeed, 
+                currentVel.Y, 
+                horizontalVel.Z * states.slideSpeed
+            )  
+        end  
     end)
 end)
---// 👻 TP RANDOM 0.5s + UI 5D MINI
---// TP tới player random -> 0.5 giây -> quay lại vị trí ban đầu
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
---==================================================
--- CONFIG
---==================================================
-local CONFIG = {
-    GuiName = "MiniTP5D",
-    ReturnDelay = 0.5
-}
-
---==================================================
--- XÓA GUI CŨ
---==================================================
-pcall(function()
-    local oldGui = game.CoreGui:FindFirstChild(CONFIG.GuiName)
-    if oldGui then
-        oldGui:Destroy()
-    end
-end)
-
---==================================================
--- GUI
---==================================================
-local gui = Instance.new("ScreenGui")
-gui.Name = CONFIG.GuiName
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = game.CoreGui
-
---==================================================
--- ICON 👻
---==================================================
-local icon = Instance.new("TextButton")
-icon.Name = "MiniIcon"
-icon.Parent = gui
-
-icon.Size = UDim2.new(0, 32, 0, 32)
-icon.Position = UDim2.new(0, 15, 0.5, -16)
-
-icon.Text = "👻"
-icon.TextScaled = true
-icon.Font = Enum.Font.GothamBold
-
-icon.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-icon.BackgroundTransparency = 0.08
-
-icon.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-icon.BorderSizePixel = 0
-icon.Active = true
-icon.Draggable = true
-
-local iconCorner = Instance.new("UICorner")
-iconCorner.CornerRadius = UDim.new(1, 0)
-iconCorner.Parent = icon
-
---==================================================
--- MENU 5D
---==================================================
-local menu = Instance.new("Frame")
-menu.Name = "Menu5D"
-menu.Parent = gui
-
-menu.Size = UDim2.new(0, 145, 0, 75)
-menu.Position = UDim2.new(0, 55, 0.5, -37)
-
-menu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-menu.BackgroundTransparency = 0.08
-
-menu.BorderSizePixel = 0
-
-menu.Active = true
-menu.Draggable = true
-menu.Visible = false
-
-local menuCorner = Instance.new("UICorner")
-menuCorner.CornerRadius = UDim.new(0, 10)
-menuCorner.Parent = menu
-
---==================================================
--- TITLE
---==================================================
-local title = Instance.new("TextLabel")
-title.Name = "Title"
-title.Parent = menu
-
-title.Size = UDim2.new(1, -10, 0, 22)
-title.Position = UDim2.new(0, 5, 0, 3)
-
-title.BackgroundTransparency = 1
-
-title.Text = "👻 TP RANDOM 5D"
-title.TextScaled = true
-title.Font = Enum.Font.GothamBold
-
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-
---==================================================
--- TP BUTTON
---==================================================
-local tpBtn = Instance.new("TextButton")
-tpBtn.Name = "RandomTP"
-tpBtn.Parent = menu
-
-tpBtn.Size = UDim2.new(1, -10, 0, 35)
-tpBtn.Position = UDim2.new(0, 5, 0, 32)
-
-tpBtn.Text = "TP RANDOM"
-tpBtn.TextScaled = true
-tpBtn.Font = Enum.Font.GothamBold
-
-tpBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-
-tpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-tpBtn.BorderSizePixel = 0
-tpBtn.AutoButtonColor = true
-
-local tpCorner = Instance.new("UICorner")
-tpCorner.CornerRadius = UDim.new(0, 8)
-tpCorner.Parent = tpBtn
-
---==================================================
--- MỞ / ĐÓNG MENU
---==================================================
-icon.MouseButton1Click:Connect(function()
-    menu.Visible = not menu.Visible
-end)
-
---==================================================
--- RANDOM PLAYER
---==================================================
-local function randomPlayer()
-
-    local list = {}
-
-    for _, v in ipairs(Players:GetPlayers()) do
-
-        if v ~= player then
-
-            local char = v.Character
-
-            if char then
-
-                local root = char:FindFirstChild("HumanoidRootPart")
-
-                if root then
-                    table.insert(list, v)
+-- =============================================================================
+-- 5. AUTO FARM & AVOID NEXTBOT SYSTEMS
+-- =============================================================================
+task.spawn(function()
+    while not closed do
+        task.wait(0.4)
+        if states.autoFarmTickets and TicketsFolder then
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                for _, ticket in ipairs(TicketsFolder:GetChildren()) do
+                    if closed or not states.autoFarmTickets then break end
+                    local tPart = ticket
+                    if ticket:IsA("Model") then
+                        tPart = ticket.PrimaryPart or ticket:FindFirstChildWhichIsA("BasePart")
+                    end
+                    if tPart and tPart:IsA("BasePart") then
+                        pcall(function()
+                            char:PivotTo(tPart.CFrame + Vector3.new(0, 3, 0))
+                        end)
+                        task.wait(0.25)
+                    end
                 end
-
             end
-
         end
-
     end
+end)
 
-    if #list == 0 then
-        return nil
+task.spawn(function()
+    while not closed do
+        task.wait(0.15)
+        if states.avoidNextbot and BotFolder then
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if root then
+                for _, bot in ipairs(BotFolder:GetChildren()) do
+                    if bot:GetAttribute("Team") == "Nextbot" or string.find(bot.Name:lower(), "nextbot") then
+                        local botRoot = bot:FindFirstChild("HumanoidRootPart") or bot:FindFirstChildWhichIsA("BasePart")
+                        if botRoot then
+                            local offset = root.Position - botRoot.Position
+                            local distance = offset.Magnitude
+                            if distance > 0 and distance < 28 then
+                                pcall(function()
+                                    char:PivotTo(
+                                        root.CFrame  
+                                        + offset.Unit * 18  
+                                        + Vector3.new(0, 4, 0)  
+                                    )
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
+end)
 
-    return list[math.random(1, #list)]
+-- =============================================================================
+-- 6. TELEPORT RANDOM DOWNED PLAYER & RETURN
+-- =============================================================================
+local function GetLivingRoot(character)
+    if not character or not character.Parent then return nil end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if not root or not hum or hum.Health <= 0 then return nil end
+    return root
 end
 
---==================================================
--- TP RANDOM
---==================================================
-local busy = false
-
-tpBtn.MouseButton1Click:Connect(function()
-
-    if busy then
-        return
+local function IsDowned(player)
+    if not player or player == LocalPlayer then return false end
+    local character = player.Character
+    if not character or not character.Parent then return false end
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if character:GetAttribute("Downed") == true or (hum and hum.Health <= 0) then
+        return GetLivingRoot(character) ~= nil
     end
+    return false
+end
 
-    busy = true
-
-    -- Nhân vật hiện tại
-    local char = player.Character
-
-    if not char then
-        busy = false
-        return
+local function GetRandomDownedPlayer()
+    local candidates = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if IsDowned(player) then
+            local root = GetLivingRoot(player.Character)
+            if root then table.insert(candidates, player) end
+        end
     end
+    if #candidates == 0 then return nil end
+    return candidates[math.random(1, #candidates)]
+end
 
-    local root = char:FindFirstChild("HumanoidRootPart")
+local teleButtonLabel, teleButton, teleButtonStroke
 
+local function TeleDownOrReturn()
+    if closed then return end
+    local char = LocalPlayer.Character
+    local root = GetLivingRoot(char)
     if not root then
-        busy = false
+        Notify("Zyntrix V16", "Không tìm thấy nhân vật!")
         return
     end
 
-    -- LƯU VỊ TRÍ HIỆN TẠI
-    local oldCFrame = root.CFrame
-
-    -- LẤY PLAYER RANDOM
-    local target = randomPlayer()
-
-    if not target then
-        busy = false
-        return
-    end
-
-    local targetChar = target.Character
-
-    if not targetChar then
-        busy = false
-        return
-    end
-
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-
-    if not targetRoot then
-        busy = false
-        return
-    end
-
-    --==================================================
-    -- TP TỚI PLAYER RANDOM
-    --==================================================
-    root.CFrame = targetRoot.CFrame
-
-    --==================================================
-    -- CHỜ 0.5 GIÂY
-    --==================================================
-    task.wait(CONFIG.ReturnDelay)
-
-    --==================================================
-    -- QUAY LẠI VỊ TRÍ CŨ
-    --==================================================
-    char = player.Character
-
-    if char then
-
-        root = char:FindFirstChild("HumanoidRootPart")
-
-        if root then
-            root.CFrame = oldCFrame
+    if teleDownActive and savedCFrame then
+        local ok = pcall(function() char:PivotTo(savedCFrame) end)
+        if ok then
+            savedCFrame = nil
+            teleDownActive = false
+            teleButtonLabel.Text = "TELE DOWN: ĐI / VỀ"
+            teleButton.BackgroundColor3 = GLASS
+            teleButtonStroke.Color = CYAN
+            Notify("Zyntrix V16", "Đã quay về vị trí ban đầu.")
+        else
+            Notify("Zyntrix V16", "Quay về thất bại!")
         end
-
+        return
     end
 
-    busy = false
+    local target = GetRandomDownedPlayer()
+    if not target then
+        Notify("Zyntrix V16", "Không tìm thấy người chơi nào đang Down.")
+        return
+    end
 
-end)
--- =============================================================================
--- ZYNTRIX - AUTO LOAD & LOCK POSITIONS (CARRY & HEAL)
--- =============================================================================
+    local targetRoot = GetLivingRoot(target.Character)
+    if not targetRoot then
+        Notify("Zyntrix V16", "Mục tiêu không hợp lệ.")
+        return
+    end
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
-local LocalPlayer = Players.LocalPlayer
+    savedCFrame = root.CFrame
+    local destination = targetRoot.CFrame + Vector3.new(0, 3, 0)
+    local ok = pcall(function() char:PivotTo(destination) end)
 
--- Cấu hình tọa độ cố định sẵn
-local carryCustomPos = UDim2.new(0.699999988, 223, 0.400000006, -15)
-local healCustomPos = UDim2.new(0.300000012, 227, 0.400000006, 48)
-local targetSize = UDim2.new(0, 100, 0, 100)
-
--- Hàm tìm kiếm đường dẫn UI an toàn
-local function getIcons()
-	local pGui = LocalPlayer:FindFirstChild("PlayerGui")
-	if not pGui then return nil, nil end
-	local gameFolder = pGui:FindFirstChild("Game")
-	if not gameFolder then return nil, nil end
-	local hud = gameFolder:FindFirstChild("HUD")
-	if not hud then return nil, nil end
-	local mobile = hud:FindFirstChild("Mobile")
-	if not mobile then return nil, nil end
-	local center = mobile:FindFirstChild("Center")
-	if not center then return nil, nil end
-	local interact1 = center:FindFirstChild("Interact")
-	if not interact1 then return nil, nil end
-	local interact2 = interact1:FindFirstChild("Interact")
-	if not interact2 then return nil, nil end
-	
-	return interact2:FindFirstChild("CarryIcon"), interact2:FindFirstChild("HealIcon")
+    if ok then
+        teleDownActive = true
+        teleButtonLabel.Text = "QUAY VỀ VỊ TRÍ CŨ"
+        teleButton.BackgroundColor3 = Col3RGB(10, 50, 90)
+        teleButtonStroke.Color = GREEN
+        Notify("Zyntrix V16", "Đã đến chỗ người Down: " .. target.Name)
+    else
+        Notify("Zyntrix V16", "Teleport thất bại.")
+    end
 end
 
--- Vòng lặp tự động áp dụng tọa độ, kích thước và chống vô hiệu hóa ngay khi bật script
-RunService.RenderStepped:Connect(function()
-	pcall(function()
-		local carryIcon, healIcon = getIcons()
-		
-		if carryIcon then
-			carryIcon.Visible = true
-			carryIcon.Active = true
-			carryIcon.Position = carryCustomPos
-			carryIcon.Size = targetSize
-		end
-		
-		if healIcon then
-			healIcon.Visible = true
-			healIcon.Active = true
-			healIcon.Position = healCustomPos
-			healIcon.Size = targetSize
-		end
-	end)
+-- =============================================================================
+-- 7. UI CREATION (V12 / V15 ICE WHITE & CYAN NEON STYLING)
+-- =============================================================================
+local gui = InstNew("ScreenGui", {
+    Name = "ZyntrixTrackMini",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    DisplayOrder = 99,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, PlayerGui)
+
+local main = InstNew("Frame", {
+    Name = "Main",
+    Size = UDim2.fromOffset(240, 340),
+    Position = UDim2.new(0.5, -120, 0.22, 0),
+    BackgroundColor3 = DARK,
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    Active = true,
+    ZIndex = 2
+}, gui)
+
+Round(main, 15)
+
+local glass = InstNew("Frame", {
+    Name = "GlassBackground",
+    Size = UDim2.fromScale(1, 1),
+    BackgroundColor3 = GLASS,
+    BackgroundTransparency = 0.22,
+    BorderSizePixel = 0,
+    ZIndex = 1
+}, main)
+
+Round(glass, 15)
+
+InstNew("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(8, 48, 82)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(4, 15, 34)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 35, 70))
+    }),
+    Rotation = 90
+}, glass)
+
+local outer = Stroke(main, ICE, 2, 0.04)
+local borderGradient = InstNew("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, ICE),
+        ColorSequenceKeypoint.new(0.18, CYAN),
+        ColorSequenceKeypoint.new(0.38, BLUE),
+        ColorSequenceKeypoint.new(0.55, ICE),
+        ColorSequenceKeypoint.new(0.78, CYAN),
+        ColorSequenceKeypoint.new(1, ICE)
+    })
+}, outer)
+
+Tween(borderGradient, 2.2, {Rotation = 360}, Enum.EasingStyle.Linear, -1)
+Tween(outer, 0.8, {Transparency = 0.3, Thickness = 2.8}, Enum.EasingStyle.Sine, -1, true)
+
+-- Header
+local header = InstNew("Frame", {
+    Name = "Header",
+    Position = UDim2.fromOffset(6, 7),
+    Size = UDim2.new(1, -12, 0, 32),
+    BackgroundColor3 = DARK,
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    ZIndex = 4
+}, main)
+
+Round(header, 9)
+Stroke(header, CYAN, 1, 0.45)
+
+local title = InstNew("TextLabel", {
+    Name = "Title",
+    Position = UDim2.fromOffset(9, 0),
+    Size = UDim2.new(1, -75, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "ZYNTRIX PRIME V16",
+    TextColor3 = ICE,
+    TextSize = 12,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Active = true,
+    ZIndex = 5
+}, header)
+
+local titleGradient = InstNew("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, CYAN),
+        ColorSequenceKeypoint.new(0.4, ICE),
+        ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(0.6, ICE),
+        ColorSequenceKeypoint.new(1, CYAN)
+    }),
+    Offset = Vector2.new(-1, 0)
+}, title)
+
+Tween(titleGradient, 1.2, {Offset = Vector2.new(1, 0)}, Enum.EasingStyle.Linear, -1)
+
+local function HeaderButton(name, text, x, color)
+    local b = InstNew("TextButton", {
+        Name = name,
+        Size = UDim2.fromOffset(25, 25),
+        Position = UDim2.new(1, x, 0, 3),
+        BackgroundColor3 = GLASS,
+        BackgroundTransparency = 0.12,
+        BorderSizePixel = 0,
+        Text = text,
+        TextColor3 = color,
+        TextSize = 19,
+        Font = Enum.Font.GothamBold,
+        AutoButtonColor = false,
+        ZIndex = 6
+    }, header)
+    Round(b, 7)
+    Stroke(b, color, 1, 0.3)
+    return b
+end
+
+local minimizeButton = HeaderButton("Minimize", "−", -53, CYAN)
+local closeButton = HeaderButton("Close", "×", -27, ICE)
+
+-- Status
+local status = InstNew("TextLabel", {
+    Name = "Status",
+    Position = UDim2.fromOffset(12, 43),
+    Size = UDim2.new(1, -24, 0, 17),
+    BackgroundTransparency = 1,
+    Text = "●  V16 PRIME  •  SẴN SÀNG",
+    TextColor3 = CYAN,
+    TextSize = 9,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 4
+}, main)
+
+-- Scroll Area
+local scroll = InstNew("ScrollingFrame", {
+    Name = "ContentScroll",
+    Position = UDim2.fromOffset(9, 65),
+    Size = UDim2.new(1, -18, 1, -74),
+    BackgroundColor3 = DARK,
+    BackgroundTransparency = 0.16,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 3,
+    ScrollBarImageColor3 = ICE,
+    ScrollBarImageTransparency = 0.1,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    Active = true,
+    ZIndex = 3
+}, main)
+
+Round(scroll, 10)
+Stroke(scroll, CYAN, 0.8, 0.6)
+
+InstNew("UIPadding", {
+    PaddingTop = UDim.new(0, 8),
+    PaddingBottom = UDim.new(0, 9),
+    PaddingLeft = UDim.new(0, 7),
+    PaddingRight = UDim.new(0, 7)
+}, scroll)
+
+InstNew("UIListLayout", {
+    Padding = UDim.new(0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, scroll)
+
+-- Toggle Button Factory
+local function AddToggleButton(text, stateKey, order, callback)
+    local item = InstNew("TextButton", {
+        Name = "Toggle_" .. stateKey,
+        LayoutOrder = order,
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundColor3 = GLASS,
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 4
+    }, scroll)
+
+    Round(item, 8)
+    local stroke = Stroke(item, CYAN, 1.1, 0.35)
+
+    local label = InstNew("TextLabel", {
+        Position = UDim2.fromOffset(12, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text .. ": TẮT",
+        TextColor3 = ICE,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5
+    }, item)
+
+    Connect(item.Activated, function()
+        if closed then return end
+        states[stateKey] = not states[stateKey]
+        local active = states[stateKey]
+        label.Text = text .. ": " .. (active and "BẬT" or "TẮT")
+        item.BackgroundColor3 = active and Col3RGB(10, 50, 90) or GLASS
+        stroke.Color = active and GREEN or CYAN
+        status.Text = "●  " .. text .. " : " .. (active and "BẬT" or "TẮT")
+        
+        if callback then
+            pcall(function() callback(active) end)
+        end
+    end)
+
+    return item
+end
+
+-- Slide Speed Input Box Row
+local function AddSlideSpeedInput(order)
+    local item = InstNew("Frame", {
+        Name = "SlideSpeedRow",
+        LayoutOrder = order,
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundColor3 = GLASS,
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        ZIndex = 4
+    }, scroll)
+
+    Round(item, 8)
+    Stroke(item, CYAN, 1.1, 0.35)
+
+    local label = InstNew("TextLabel", {
+        Position = UDim2.fromOffset(12, 0),
+        Size = UDim2.new(0.6, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "TỐC ĐỘ TRƯỢT:",
+        TextColor3 = ICE,
+        TextSize = 9,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5
+    }, item)
+
+    local textBox = InstNew("TextBox", {
+        Position = UDim2.new(0.62, 0, 0.15, 0),
+        Size = UDim2.new(0.33, 0, 0.7, 0),
+        BackgroundColor3 = DARK,
+        BackgroundTransparency = 0.2,
+        BorderSizePixel = 0,
+        Text = tostring(states.slideSpeed),
+        TextColor3 = CYAN,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
+        ZIndex = 5
+    }, item)
+
+    Round(textBox, 6)
+    Stroke(textBox, CYAN, 1, 0.3)
+
+    Connect(textBox.FocusLost, function()
+        local val = tonumber(textBox.Text)
+        if val and val > 0 and val <= 10 then
+            states.slideSpeed = val
+            status.Text = "●  SLIDE SPEED CẬP NHẬT: " .. tostring(val)
+        else
+            textBox.Text = tostring(states.slideSpeed)
+            status.Text = "●  GIÁ TRỊ KHÔNG HỢP LỆ (1-10)"
+        end
+    end)
+end
+
+-- Xây dựng các chức năng vào ScrollingFrame
+AddToggleButton("ESP NGƯỜI CHƠI", "espPlayer", 1, refreshAllESP)
+AddToggleButton("ESP NEXTBOT", "espNextbot", 2, refreshAllESP)
+AddToggleButton("ESP VÉ / TICKETS", "espTickets", 3, refreshAllESP)
+AddToggleButton("TỰ ĐỘNG FARM VÉ", "autoFarmTickets", 4)
+AddToggleButton("NÉ NEXTBOT THÔNG MINH", "avoidNextbot", 5)
+AddToggleButton("KHÓA NÚT BẾ (CARRY)", "carryLock", 6)
+AddToggleButton("KHÓA NÚT CỨU (HEAL)", "healLock", 7)
+AddToggleButton("TĂNG TỐC ĐỘ (SPEED)", "speedBoost", 8)
+AddToggleButton("TỰ ĐỘNG NHẢY", "autoJump", 9)
+AddToggleButton("TRƯỢT VÔ TẠN (SLIDE)", "infiniteSlide", 10)
+AddSlideSpeedInput(11)
+
+-- Nút bấm Tele Down / Quay về
+teleButton = InstNew("TextButton", {
+    Name = "TeleDownReturn",
+    LayoutOrder = 12,
+    Size = UDim2.new(1, 0, 0, 36),
+    BackgroundColor3 = GLASS,
+    BackgroundTransparency = 0.1,
+    BorderSizePixel = 0,
+    Text = "",
+    AutoButtonColor = false,
+    ZIndex = 4
+}, scroll)
+
+Round(teleButton, 8)
+teleButtonStroke = Stroke(teleButton, CYAN, 1.1, 0.35)
+
+teleButtonLabel = InstNew("TextLabel", {
+    Position = UDim2.fromOffset(12, 0),
+    Size = UDim2.new(1, -24, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "TELE DOWN: ĐI / VỀ",
+    TextColor3 = ICE,
+    TextSize = 10,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 5
+}, teleButton)
+
+Connect(teleButton.Activated, TeleDownOrReturn)
+
+-- Floating Minimized Button ("Z")
+local floating = InstNew("TextButton", {
+    Name = "FloatingToggle",
+    Size = UDim2.fromOffset(46, 46),
+    Position = UDim2.new(0, 16, 0.5, -23),
+    BackgroundColor3 = DARK,
+    BackgroundTransparency = 0.08,
+    BorderSizePixel = 0,
+    Text = "Z",
+    TextColor3 = ICE,
+    TextSize = 21,
+    Font = Enum.Font.GothamBold,
+    Visible = false,
+    Active = true,
+    AutoButtonColor = false,
+    ZIndex = 10
+}, gui)
+
+Round(floating, 13)
+local floatingStroke = Stroke(floating, ICE, 2, 0.03)
+local floatingGradient = InstNew("UIGradient", {
+    Color = borderGradient.Color
+}, floatingStroke)
+Tween(floatingGradient, 2.2, {Rotation = 360}, Enum.EasingStyle.Linear, -1)
+
+-- Mobile Drag Handler (Chống kẹt cảm ứng & tránh nhầm click)
+local function MakeDraggable(object, handle)
+    local dragging = false
+    local dragInput
+    local startPointer
+    local startPosition
+    local moved = false
+    local suppressClick = false
+
+    Connect(handle.InputBegan, function(input)  
+        if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end  
+        dragging = true  
+        moved = false  
+        dragInput = input  
+        startPointer = input.Position  
+        startPosition = object.Position  
+    end)  
+
+    Connect(UserInputService.InputChanged, function(input)  
+        if not dragging or not dragInput then return end  
+        local matchingTouch = dragInput.UserInputType == Enum.UserInputType.Touch and input == dragInput  
+        local matchingMouse = dragInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseMovement  
+        if not matchingTouch and not matchingMouse then return end  
+
+        local delta = input.Position - startPointer  
+        if abs(delta.X) > 3 or abs(delta.Y) > 3 then moved = true end  
+
+        object.Position = UDim2.new(  
+            startPosition.X.Scale,  
+            startPosition.X.Offset + delta.X,  
+            startPosition.Y.Scale,  
+            startPosition.Y.Offset + delta.Y  
+        )  
+    end)  
+
+    Connect(UserInputService.InputEnded, function(input)  
+        if input == dragInput or (dragInput and dragInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseButton1) then  
+            dragging = false  
+            dragInput = nil  
+            if moved then  
+                suppressClick = true  
+                task.defer(function() suppressClick = false end)  
+            end  
+        end  
+    end)  
+
+    return function() return suppressClick end
+end
+
+MakeDraggable(main, title)
+local wasFloatingDragged = MakeDraggable(floating, floating)
+
+-- Minimize / Restore
+Connect(minimizeButton.Activated, function()
+    if closed then return end
+    main.Visible = false
+    floating.Visible = true
 end)
+
+Connect(floating.Activated, function()
+    if closed or wasFloatingDragged() then return end
+    main.Visible = true
+    floating.Visible = false
+end)
+
+-- Cleanup & Close
+local function Cleanup()
+    if closed then return end
+    closed = true
+
+    for _, tw in ipairs(tweens) do pcall(function() tw:Cancel() end) end
+    for _, c in ipairs(connections) do pcall(function() c:Disconnect() end) end
+
+    if espContainer then espContainer:Destroy() end
+    gui:Destroy()
+end
+
+Connect(closeButton.Activated, Cleanup)
 
 pcall(function()
-	StarterGui:SetCore("SendNotification", {
-		Title = "Zyntrix Auto-Lock",
-		Text = "Đã tự động khóa và load tọa độ chuẩn cho nút Bế & Cứu!",
-		Duration = 4
-	})
+    StarterGui:SetCore("SendNotification", {
+        Title = "Zyntrix Prime v16",
+        Text = "Đã hoàn thiện bản V16 Pro • Tất cả lỗi đã được khắc phục triệt để!",
+        Duration = 4
+    })
 end)
+
+print("ZYNTRIX PRIME • FURINA MINI V16 • FULLY LOADED & STABLE")
